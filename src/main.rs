@@ -1,7 +1,10 @@
 use std::cmp::Ordering;
+use std::ops::Range;
 use std::path::PathBuf;
 use std::{env, fs};
 
+use futures::channel::mpsc;
+use futures::StreamExt;
 use gpui::*;
 
 const BG_BASE: u32 = 0x1e1e2e;
@@ -14,140 +17,208 @@ const ACCENT: u32 = 0x89b4fa;
 const SIDEBAR_BG: u32 = 0x181825;
 const BORDER_COLOR: u32 = 0x313244;
 
+const BATCH_SIZE: usize = 200;
+
 #[derive(Clone)]
 struct FileEntry {
-    name: String,
+    name: SharedString,
     path: PathBuf,
     is_dir: bool,
-    size: u64,
+    size_display: SharedString,
 }
 
 impl FileEntry {
-    fn display_size(&self) -> String {
-        if self.is_dir {
-            return "—".into();
-        }
-        match self.size {
-            s if s < 1024 => format!("{s} B"),
-            s if s < 1024 * 1024 => format!("{:.1} KB", s as f64 / 1024.0),
-            s if s < 1024 * 1024 * 1024 => format!("{:.1} MB", s as f64 / (1024.0 * 1024.0)),
-            s => format!("{:.1} GB", s as f64 / (1024.0 * 1024.0 * 1024.0)),
+    fn new(name: String, path: PathBuf, is_dir: bool, size: u64) -> Self {
+        let size_display = if is_dir {
+            "—".into()
+        } else {
+            SharedString::from(format_size(size))
+        };
+        Self {
+            name: SharedString::from(name),
+            path,
+            is_dir,
+            size_display,
         }
     }
 
     fn icon(&self) -> &'static str {
-        if self.is_dir {
-            "📁"
-        } else {
-            "📄"
-        }
+        if self.is_dir { "📁" } else { "📄" }
     }
 }
 
+fn format_size(size: u64) -> String {
+    match size {
+        s if s < 1024 => format!("{s} B"),
+        s if s < 1024 * 1024 => format!("{:.1} KB", s as f64 / 1024.0),
+        s if s < 1024 * 1024 * 1024 => format!("{:.1} MB", s as f64 / (1024.0 * 1024.0)),
+        s => format!("{:.1} GB", s as f64 / (1024.0 * 1024.0 * 1024.0)),
+    }
+}
+
+fn sort_entries(entries: &mut [FileEntry]) {
+    entries.sort_by(|a, b| match (a.is_dir, b.is_dir) {
+        (true, false) => Ordering::Less,
+        (false, true) => Ordering::Greater,
+        _ => a.name.to_lowercase().cmp(&b.name.to_lowercase()),
+    });
+}
 
 #[derive(Clone)]
 struct Bookmark {
     label: &'static str,
     path: PathBuf,
+    exists: bool,
 }
 
 fn default_bookmarks() -> Vec<Bookmark> {
     let home = dirs::home_dir().unwrap_or_else(|| PathBuf::from("/"));
-    vec![
-        Bookmark {
-            label: "Home",
-            path: home.clone(),
-        },
-        Bookmark {
-            label: "Desktop",
-            path: home.join("Desktop"),
-        },
-        Bookmark {
-            label: "Documents",
-            path: home.join("Documents"),
-        },
-        Bookmark {
-            label: "Downloads",
-            path: home.join("Downloads"),
-        },
-        Bookmark {
-            label: "Projects",
-            path: home.join("projects"),
-        },
-        Bookmark {
-            label: "/",
-            path: PathBuf::from("/"),
-        },
+    [
+        ("Home", home.clone()),
+        ("Desktop", home.join("Desktop")),
+        ("Documents", home.join("Documents")),
+        ("Downloads", home.join("Downloads")),
+        ("Projects", home.join("projects")),
+        ("/", PathBuf::from("/")),
     ]
+    .into_iter()
+    .map(|(label, path)| {
+        let exists = path.exists();
+        Bookmark { label, path, exists }
+    })
+    .collect()
 }
-
 
 struct GroveApp {
     current_dir: PathBuf,
     entries: Vec<FileEntry>,
     bookmarks: Vec<Bookmark>,
     selected_index: Option<usize>,
+    loading_task: Option<Task<()>>,
+    is_loading: bool,
+    needs_initial_load: bool,
+    scroll_handle: UniformListScrollHandle,
 }
 
 impl GroveApp {
     fn new() -> Self {
-        let cwd = env::current_dir().unwrap_or_else(|_| PathBuf::from("/"));
-        let mut app = Self {
-            current_dir: cwd.clone(),
+        Self {
+            current_dir: env::current_dir().unwrap_or_else(|_| PathBuf::from("/")),
             entries: Vec::new(),
             bookmarks: default_bookmarks(),
             selected_index: None,
-        };
-        app.read_directory(&cwd);
-        app
+            loading_task: None,
+            is_loading: true,
+            needs_initial_load: true,
+            scroll_handle: UniformListScrollHandle::default(),
+        }
     }
 
-    fn read_directory(&mut self, path: &PathBuf) {
+    fn start_loading(&mut self, path: PathBuf, window: &mut Window, cx: &mut Context<Self>) {
         self.current_dir = path.clone();
-        self.selected_index = None;
         self.entries.clear();
+        self.selected_index = None;
+        self.is_loading = true;
+        self.scroll_handle = UniformListScrollHandle::default();
 
-        let Ok(read_dir) = fs::read_dir(path) else {
-            return;
-        };
+        let (tx, mut rx) = mpsc::channel::<Vec<FileEntry>>(8);
 
-        for entry in read_dir.flatten() {
-            let Ok(meta) = entry.metadata() else {
-                continue;
-            };
-            self.entries.push(FileEntry {
-                name: entry.file_name().to_string_lossy().into_owned(),
-                path: entry.path(),
-                is_dir: meta.is_dir(),
-                size: meta.len(),
+        cx.background_spawn(async move {
+            read_directory_bg(path, tx).await;
+        })
+        .detach();
+
+        // The foreground consumer collects entries in a local buffer.
+        // It only flushes an intermediate UI update every BATCH_SIZE entries,
+        // so small/fast directories get a single atomic update (no stutter).
+        let task = cx.spawn_in(window, async move |weak, cx| {
+            let mut pending = Vec::new();
+
+            while let Some(batch) = rx.next().await {
+                pending.extend(batch);
+
+                if pending.len() >= BATCH_SIZE {
+                    let ready = std::mem::take(&mut pending);
+                    let ok = weak
+                        .update_in(cx, |this, _window, cx| {
+                            this.entries.extend(ready);
+                            cx.notify();
+                        })
+                        .is_ok();
+                    if !ok {
+                        return;
+                    }
+                }
+            }
+
+            // Final update: flush remaining entries + sort in one shot
+            let _ = weak.update_in(cx, |this, _window, cx| {
+                this.entries.extend(pending);
+                sort_entries(&mut this.entries);
+                this.is_loading = false;
+                cx.notify();
             });
-        }
-
-        // Directories first, then alphabetical
-        self.entries.sort_by(|a, b| match (a.is_dir, b.is_dir) {
-            (true, false) => Ordering::Less,
-            (false, true) => Ordering::Greater,
-            _ => a.name.to_lowercase().cmp(&b.name.to_lowercase()),
         });
+
+        self.loading_task = Some(task);
+        cx.notify();
     }
 
-    fn navigate_to(&mut self, path: PathBuf) {
+    fn navigate_to(&mut self, path: PathBuf, window: &mut Window, cx: &mut Context<Self>) {
         if path.is_dir() {
-            self.read_directory(&path.clone());
+            self.start_loading(path, window, cx);
         }
     }
 
-    fn navigate_up(&mut self) {
+    fn navigate_up(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         if let Some(parent) = self.current_dir.parent() {
             let parent = parent.to_path_buf();
-            self.read_directory(&parent.clone());
+            self.start_loading(parent, window, cx);
         }
     }
 }
 
+async fn read_directory_bg(path: PathBuf, mut tx: mpsc::Sender<Vec<FileEntry>>) {
+    use futures::SinkExt;
+
+    let Ok(read_dir) = fs::read_dir(&path) else {
+        return;
+    };
+
+    let mut batch = Vec::with_capacity(BATCH_SIZE);
+
+    for entry in read_dir.flatten() {
+        let Ok(meta) = entry.metadata() else {
+            continue;
+        };
+        batch.push(FileEntry::new(
+            entry.file_name().to_string_lossy().into_owned(),
+            entry.path(),
+            meta.is_dir(),
+            meta.len(),
+        ));
+
+        if batch.len() >= BATCH_SIZE {
+            if tx.send(std::mem::take(&mut batch)).await.is_err() {
+                return;
+            }
+            batch = Vec::with_capacity(BATCH_SIZE);
+        }
+    }
+
+    if !batch.is_empty() {
+        let _ = tx.send(batch).await;
+    }
+}
 
 impl Render for GroveApp {
-    fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        if self.needs_initial_load {
+            self.needs_initial_load = false;
+            let cwd = self.current_dir.clone();
+            self.start_loading(cwd, window, cx);
+        }
+
         div()
             .flex()
             .flex_col()
@@ -192,9 +263,8 @@ impl GroveApp {
                     .hover(|s| s.bg(rgb(BG_HOVER)))
                     .text_sm()
                     .child("↑ Up")
-                    .on_click(cx.listener(|this, _event, _window, cx| {
-                        this.navigate_up();
-                        cx.notify();
+                    .on_click(cx.listener(|this, _event, window, cx| {
+                        this.navigate_up(window, cx);
                     })),
             )
             .child(
@@ -231,12 +301,13 @@ impl GroveApp {
                     .child("BOOKMARKS"),
             );
 
-        for bookmark in self.bookmarks.clone() {
+        for bookmark in &self.bookmarks {
             let path = bookmark.path.clone();
-            let exists = path.exists();
+            let exists = bookmark.exists;
+            let label = bookmark.label;
 
             let mut bookmark_el = div()
-                .id(SharedString::from(format!("bm-{}", bookmark.label)))
+                .id(SharedString::from(format!("bm-{}", label)))
                 .flex()
                 .flex_row()
                 .items_center()
@@ -253,13 +324,13 @@ impl GroveApp {
                     rgb(TEXT_MUTED)
                 })
                 .hover(|s| s.bg(rgb(BG_HOVER)))
-                .child(bookmark.label);
+                .child(label);
 
             if exists {
-                bookmark_el = bookmark_el.on_click(cx.listener(move |this, _event, _window, cx| {
-                    this.navigate_to(path.clone());
-                    cx.notify();
-                }));
+                bookmark_el =
+                    bookmark_el.on_click(cx.listener(move |this, _event, window, cx| {
+                        this.navigate_to(path.clone(), window, cx);
+                    }));
             }
 
             sidebar = sidebar.child(bookmark_el);
@@ -268,90 +339,113 @@ impl GroveApp {
         sidebar
     }
 
-    fn render_file_list(&mut self, cx: &mut Context<Self>) -> impl IntoElement {
-        let mut list = div()
-            .id("file-list")
-            .flex()
-            .flex_col()
-            .flex_1()
-            .overflow_y_scroll()
-            .py_1();
+    fn render_file_list(&mut self, cx: &mut Context<Self>) -> AnyElement {
+        let entry_count = self.entries.len();
 
-        if self.entries.is_empty() {
-            return list.child(
+        if entry_count == 0 && !self.is_loading {
+            return div()
+                .flex_1()
+                .flex()
+                .justify_center()
+                .items_center()
+                .py_8()
+                .text_color(rgb(TEXT_MUTED))
+                .text_sm()
+                .child("Empty directory")
+                .into_any_element();
+        }
+
+        let mut container = div().flex().flex_col().flex_1().min_h_0();
+
+        if self.is_loading {
+            container = container.child(
                 div()
-                    .flex()
-                    .size_full()
-                    .justify_center()
-                    .items_center()
-                    .py_8()
+                    .px_3()
+                    .py_1()
+                    .text_xs()
                     .text_color(rgb(TEXT_MUTED))
-                    .text_sm()
-                    .child("Empty directory"),
+                    .child(if entry_count > 0 {
+                        format!("Loading… ({entry_count} entries)")
+                    } else {
+                        "Loading…".into()
+                    }),
             );
         }
 
-        for (i, entry) in self.entries.clone().iter().enumerate() {
-            let path = entry.path.clone();
-            let is_dir = entry.is_dir;
-            let is_selected = self.selected_index == Some(i);
-
-            let mut row = div()
-                .id(ElementId::NamedInteger("entry".into(), i as u64))
-                .flex()
-                .flex_row()
-                .items_center()
-                .gap_2()
-                .px_3()
-                .py(px(3.))
-                .mx_1()
-                .rounded_md()
-                .cursor_pointer()
-                .text_sm()
-                .hover(|s| s.bg(rgb(BG_HOVER)));
-
-            if is_selected {
-                row = row.bg(rgb(BG_SURFACE));
-            }
-
-            let row = row
-                .child(
-                    div()
-                        .w(px(20.))
-                        .text_center()
-                        .child(entry.icon()),
+        container
+            .child(
+                uniform_list(
+                    "file-list",
+                    entry_count,
+                    cx.processor(|this, range: Range<usize>, _window, cx| {
+                        this.render_entry_range(range, cx)
+                    }),
                 )
-                .child(
-                    div()
-                        .flex_1()
-                        .overflow_x_hidden()
-                        .text_color(if is_dir {
-                            rgb(ACCENT)
+                .flex_1()
+                .track_scroll(self.scroll_handle.clone()),
+            )
+            .into_any_element()
+    }
+
+    fn render_entry_range(
+        &mut self,
+        range: Range<usize>,
+        cx: &mut Context<Self>,
+    ) -> Vec<AnyElement> {
+        range
+            .map(|i| {
+                let entry = &self.entries[i];
+                let path = entry.path.clone();
+                let is_dir = entry.is_dir;
+                let is_selected = self.selected_index == Some(i);
+                let name = entry.name.clone();
+                let size_display = entry.size_display.clone();
+                let icon = entry.icon();
+
+                let mut row = div()
+                    .id(ElementId::NamedInteger("entry".into(), i as u64))
+                    .flex()
+                    .flex_row()
+                    .items_center()
+                    .gap_2()
+                    .px_3()
+                    .py(px(3.))
+                    .mx_1()
+                    .rounded_md()
+                    .cursor_pointer()
+                    .text_sm()
+                    .hover(|s| s.bg(rgb(BG_HOVER)));
+
+                if is_selected {
+                    row = row.bg(rgb(BG_SURFACE));
+                }
+
+                row.child(div().w(px(20.)).text_center().child(icon))
+                    .child(
+                        div()
+                            .flex_1()
+                            .overflow_x_hidden()
+                            .text_color(if is_dir { rgb(ACCENT) } else { rgb(TEXT_PRIMARY) })
+                            .child(name),
+                    )
+                    .child(
+                        div()
+                            .w(px(80.))
+                            .text_color(rgb(TEXT_MUTED))
+                            .text_right()
+                            .child(size_display),
+                    )
+                    .on_click(cx.listener(move |this, _event, window, cx| {
+                        if is_dir {
+                            this.navigate_to(path.clone(), window, cx);
                         } else {
-                            rgb(TEXT_PRIMARY)
-                        })
-                        .child(entry.name.clone()),
-                )
-                .child(
-                    div()
-                        .w(px(80.))
-                        .text_color(rgb(TEXT_MUTED))
-                        .text_right()
-                        .child(entry.display_size()),
-                )
-                .on_click(cx.listener(move |this, _event, _window, cx| {
-                    if is_dir {
-                        this.navigate_to(path.clone());
-                    } else {
-                        this.selected_index = Some(i);
-                    }
-                    cx.notify();
-                }));
-
-            list = list.child(row);
-        }
-
-        list
+                            this.selected_index = Some(i);
+                        }
+                        cx.notify();
+                    }))
+                    .into_any_element()
+            })
+            .collect()
     }
 }
 
