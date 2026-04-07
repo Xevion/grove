@@ -1,11 +1,16 @@
 use std::cmp::Ordering;
+use std::fmt;
 use std::ops::Range;
 use std::path::PathBuf;
+use std::time::Instant;
 use std::{env, fs};
 
 use futures::channel::mpsc;
 use futures::StreamExt;
 use gpui::*;
+use rayon::prelude::*;
+use tracing::{debug, info, instrument, warn};
+use tracing_subscriber::EnvFilter;
 
 const BG_BASE: u32 = 0x1e1e2e;
 const BG_SURFACE: u32 = 0x313244;
@@ -44,6 +49,23 @@ impl FileEntry {
 
     fn icon(&self) -> &'static str {
         if self.is_dir { "📁" } else { "📄" }
+    }
+}
+
+struct Elapsed(std::time::Duration);
+
+impl fmt::Display for Elapsed {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let nanos = self.0.as_nanos();
+        if nanos < 1_000 {
+            write!(f, "{nanos}ns")
+        } else if nanos < 1_000_000 {
+            write!(f, "{:.1}µs", nanos as f64 / 1_000.0)
+        } else if nanos < 1_000_000_000 {
+            write!(f, "{:.2}ms", nanos as f64 / 1_000_000.0)
+        } else {
+            write!(f, "{:.2}s", self.0.as_secs_f64())
+        }
     }
 }
 
@@ -114,12 +136,13 @@ impl GroveApp {
         }
     }
 
+    #[instrument(skip(self, window, cx), fields(path = %path.display()))]
     fn start_loading(&mut self, path: PathBuf, window: &mut Window, cx: &mut Context<Self>) {
+        let t0 = Instant::now();
+        info!("loading directory");
         self.current_dir = path.clone();
-        self.entries.clear();
         self.selected_index = None;
         self.is_loading = true;
-        self.scroll_handle = UniformListScrollHandle::default();
 
         let (tx, mut rx) = mpsc::channel::<Vec<FileEntry>>(8);
 
@@ -128,20 +151,19 @@ impl GroveApp {
         })
         .detach();
 
-        // The foreground consumer collects entries in a local buffer.
-        // It only flushes an intermediate UI update every BATCH_SIZE entries,
-        // so small/fast directories get a single atomic update (no stutter).
         let task = cx.spawn_in(window, async move |weak, cx| {
-            let mut pending = Vec::new();
+            let t_recv_start = Instant::now();
+            let mut collected = Vec::new();
 
             while let Some(batch) = rx.next().await {
-                pending.extend(batch);
+                collected.extend(batch);
 
-                if pending.len() >= BATCH_SIZE {
-                    let ready = std::mem::take(&mut pending);
+                if collected.len() >= BATCH_SIZE {
+                    let snapshot = collected.clone();
                     let ok = weak
                         .update_in(cx, |this, _window, cx| {
-                            this.entries.extend(ready);
+                            this.entries = snapshot;
+                            this.scroll_handle.scroll_to_item(0, ScrollStrategy::Top);
                             cx.notify();
                         })
                         .is_ok();
@@ -150,11 +172,24 @@ impl GroveApp {
                     }
                 }
             }
+            let t_recv = t_recv_start.elapsed();
 
-            // Final update: flush remaining entries + sort in one shot
+            let t_sort_start = Instant::now();
+            sort_entries(&mut collected);
+            let t_sort = t_sort_start.elapsed();
+
+            let count = collected.len();
             let _ = weak.update_in(cx, |this, _window, cx| {
-                this.entries.extend(pending);
-                sort_entries(&mut this.entries);
+                let t_total = t0.elapsed();
+                debug!(
+                    count,
+                    recv = %Elapsed(t_recv),
+                    sort = %Elapsed(t_sort),
+                    total = %Elapsed(t_total),
+                    "directory load complete"
+                );
+                this.entries = collected;
+                this.scroll_handle.scroll_to_item(0, ScrollStrategy::Top);
                 this.is_loading = false;
                 cx.notify();
             });
@@ -165,7 +200,11 @@ impl GroveApp {
     }
 
     fn navigate_to(&mut self, path: PathBuf, window: &mut Window, cx: &mut Context<Self>) {
-        if path.is_dir() {
+        let t0 = Instant::now();
+        let is_dir = path.is_dir();
+        let t_stat = t0.elapsed();
+        debug!(path = %path.display(), is_dir, stat = %Elapsed(t_stat), "navigate_to");
+        if is_dir {
             self.start_loading(path, window, cx);
         }
     }
@@ -181,34 +220,59 @@ impl GroveApp {
 async fn read_directory_bg(path: PathBuf, mut tx: mpsc::Sender<Vec<FileEntry>>) {
     use futures::SinkExt;
 
-    let Ok(read_dir) = fs::read_dir(&path) else {
-        return;
+    let t0 = Instant::now();
+
+    let read_dir = match fs::read_dir(&path) {
+        Ok(rd) => rd,
+        Err(e) => {
+            warn!(path = %path.display(), error = %e, "failed to read directory");
+            return;
+        }
     };
 
-    let mut batch = Vec::with_capacity(BATCH_SIZE);
+    // Phase 1: collect names + file_type from getdents64 (no stat syscalls)
+    let raw_entries: Vec<_> = read_dir
+        .flatten()
+        .filter_map(|entry| {
+            let ft = entry.file_type().ok()?;
+            Some((entry.file_name().to_string_lossy().into_owned(), entry.path(), ft.is_dir()))
+        })
+        .collect();
 
-    for entry in read_dir.flatten() {
-        let Ok(meta) = entry.metadata() else {
-            continue;
-        };
-        batch.push(FileEntry::new(
-            entry.file_name().to_string_lossy().into_owned(),
-            entry.path(),
-            meta.is_dir(),
-            meta.len(),
-        ));
+    let t_readdir = t0.elapsed();
+    let total = raw_entries.len();
+    let dir_count = raw_entries.iter().filter(|(_, _, is_dir)| *is_dir).count();
+    let file_count = total - dir_count;
 
-        if batch.len() >= BATCH_SIZE {
-            if tx.send(std::mem::take(&mut batch)).await.is_err() {
-                return;
-            }
-            batch = Vec::with_capacity(BATCH_SIZE);
-        }
-    }
+    // Phase 2: parallel stat only for files (directories don't need size)
+    let t_stat_start = Instant::now();
+    let batch: Vec<FileEntry> = raw_entries
+        .into_par_iter()
+        .map(|(name, path, is_dir)| {
+            let size = if is_dir {
+                0
+            } else {
+                fs::metadata(&path).map(|m| m.len()).unwrap_or(0)
+            };
+            FileEntry::new(name, path, is_dir, size)
+        })
+        .collect();
+    let t_stat = t_stat_start.elapsed();
 
     if !batch.is_empty() {
         let _ = tx.send(batch).await;
     }
+
+    debug!(
+        path = %path.display(),
+        total,
+        dirs = dir_count,
+        files = file_count,
+        readdir = %Elapsed(t_readdir),
+        stat = %Elapsed(t_stat),
+        total_io = %Elapsed(t0.elapsed()),
+        "directory read complete"
+    );
 }
 
 impl Render for GroveApp {
@@ -449,7 +513,22 @@ impl GroveApp {
     }
 }
 
+fn init_tracing() {
+    let filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| {
+        EnvFilter::new("warn,grove=debug")
+    });
+
+    tracing_subscriber::fmt()
+        .with_env_filter(filter)
+        .with_writer(std::io::stderr)
+        .init();
+
+    info!("tracing initialized");
+}
+
 fn main() {
+    init_tracing();
+
     Application::new().run(|cx: &mut App| {
         let options = WindowOptions {
             window_bounds: Some(WindowBounds::Windowed(Bounds::centered(
