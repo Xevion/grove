@@ -2,9 +2,11 @@ mod app;
 mod fs;
 mod model;
 mod theme;
-mod ui;
+pub(crate) mod ui;
 
-use gpui::*;
+use gpui::{
+    px, size, App, AppContext, Application, Bounds, TitlebarOptions, WindowBounds, WindowOptions,
+};
 use tracing::info;
 use tracing_subscriber::EnvFilter;
 

@@ -39,7 +39,7 @@ impl FileEntry {
         }
     }
 
-    pub fn icon(&self) -> &'static str {
+    pub const fn icon(&self) -> &'static str {
         if self.is_dir { "📁" } else { "📄" }
     }
 }
@@ -47,6 +47,7 @@ impl FileEntry {
 pub struct Elapsed(pub Duration);
 
 impl fmt::Display for Elapsed {
+    #[allow(clippy::cast_precision_loss)]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let nanos = self.0.as_nanos();
         if nanos < 1_000 {
@@ -61,6 +62,7 @@ impl fmt::Display for Elapsed {
     }
 }
 
+#[allow(clippy::cast_precision_loss)]
 pub fn format_size(size: u64) -> String {
     match size {
         s if s < 1024 => format!("{s} B"),

@@ -1,10 +1,13 @@
-use gpui::*;
+use gpui::{
+    div, rgb, Context, InteractiveElement, IntoElement, ParentElement, StatefulInteractiveElement,
+    Styled,
+};
 
 use crate::app::GroveApp;
-use crate::theme::*;
+use crate::theme::{BG_BASE, BG_HOVER, BG_SURFACE, BORDER_COLOR, TEXT_SECONDARY};
 
 impl GroveApp {
-    pub(crate) fn render_toolbar(&mut self, cx: &mut Context<Self>) -> impl IntoElement {
+    pub(crate) fn render_toolbar(&self, cx: &Context<Self>) -> impl IntoElement {
         let path_display = self.current_dir.display().to_string();
 
         div()

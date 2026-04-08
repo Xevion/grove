@@ -1,10 +1,13 @@
-use gpui::*;
+use gpui::{
+    div, px, rgb, Context, FontWeight, InteractiveElement, IntoElement, ParentElement,
+    SharedString, StatefulInteractiveElement, Styled,
+};
 
 use crate::app::GroveApp;
-use crate::theme::*;
+use crate::theme::{BG_HOVER, BORDER_COLOR, SIDEBAR_BG, TEXT_MUTED, TEXT_PRIMARY};
 
 impl GroveApp {
-    pub(crate) fn render_sidebar(&mut self, cx: &mut Context<Self>) -> impl IntoElement {
+    pub(crate) fn render_sidebar(&self, cx: &Context<Self>) -> impl IntoElement {
         let mut sidebar = div()
             .flex()
             .flex_col()
@@ -30,7 +33,7 @@ impl GroveApp {
             let label = bookmark.label;
 
             let mut bookmark_el = div()
-                .id(SharedString::from(format!("bm-{}", label)))
+                .id(SharedString::from(format!("bm-{label}")))
                 .flex()
                 .flex_row()
                 .items_center()

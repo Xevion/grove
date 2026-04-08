@@ -1,12 +1,16 @@
 use std::ops::Range;
 
-use gpui::*;
+use gpui::{
+    div, px, rgb, uniform_list, AnyElement, ClickEvent, Context, ElementId, FontWeight,
+    InteractiveElement, IntoElement, ParentElement, StatefulInteractiveElement,
+    Styled,
+};
 
 use crate::app::GroveApp;
-use crate::theme::*;
+use crate::theme::{ACCENT, BG_HOVER, BG_SURFACE, BORDER_COLOR, TEXT_MUTED, TEXT_PRIMARY};
 
 impl GroveApp {
-    pub(crate) fn render_file_list(&mut self, cx: &mut Context<Self>) -> AnyElement {
+    pub(crate) fn render_file_list(&self, cx: &Context<Self>) -> AnyElement {
         let entry_count = self.visible_entries.len();
 
         if entry_count == 0 && !self.is_loading {
@@ -57,6 +61,7 @@ impl GroveApp {
             .into_any_element()
     }
 
+    #[allow(clippy::unused_self)]
     fn render_column_header(&self) -> impl IntoElement {
         // Mirrors the exact padding/gap/widths used in render_entry_range
         div()
@@ -81,9 +86,9 @@ impl GroveApp {
     }
 
     pub(crate) fn render_entry_range(
-        &mut self,
+        &self,
         range: Range<usize>,
-        cx: &mut Context<Self>,
+        cx: &Context<Self>,
     ) -> Vec<AnyElement> {
         range
             .map(|i| {

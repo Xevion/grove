@@ -4,18 +4,29 @@ use std::time::Instant;
 
 use futures::StreamExt;
 use futures::channel::mpsc;
-use gpui::*;
+use gpui::{
+    actions, div, rgb, App, AppContext, Context, FocusHandle, InteractiveElement, IntoElement,
+    KeyBinding, ParentElement, Render, ScrollStrategy, Styled, Task, UniformListScrollHandle,
+    Window,
+};
 use tracing::{debug, info, instrument};
 
 use crate::fs::{Elapsed, FileEntry, merge_sorted, read_directory_bg};
 use crate::model::{Bookmark, default_bookmarks};
-use crate::theme::*;
+use crate::theme::{BG_BASE, TEXT_PRIMARY};
 use crate::ui::status_bar::{TextMeasureCache, TruncationKey};
 
 actions!(
     grove,
     [MoveDown, MoveUp, Open, NavigateUp, ToggleHidden, Deselect]
 );
+
+impl Eq for MoveDown {}
+impl Eq for MoveUp {}
+impl Eq for Open {}
+impl Eq for NavigateUp {}
+impl Eq for ToggleHidden {}
+impl Eq for Deselect {}
 
 pub fn register_keybindings(cx: &mut App) {
     cx.bind_keys([
@@ -88,19 +99,13 @@ impl GroveApp {
         if count == 0 {
             return;
         }
-        let next = match self.selected_index {
-            None => {
-                if delta >= 0 {
-                    0
-                } else {
-                    count - 1
-                }
-            }
-            Some(i) => {
-                let next = i as isize + delta;
-                next.clamp(0, count as isize - 1) as usize
-            }
-        };
+        let next = self.selected_index.map_or_else(
+            || if delta >= 0 { 0 } else { count - 1 },
+            |i| {
+                let next = i.cast_signed() + delta;
+                next.clamp(0, count.cast_signed() - 1).cast_unsigned()
+            },
+        );
         self.selected_index = Some(next);
         self.scroll_handle
             .scroll_to_item(next, ScrollStrategy::Center);
@@ -148,10 +153,10 @@ impl GroveApp {
     }
 
     #[instrument(skip(self, window, cx), fields(path = %path.display()))]
-    fn start_loading(&mut self, path: PathBuf, window: &mut Window, cx: &mut Context<Self>) {
+    fn start_loading(&mut self, path: PathBuf, window: &Window, cx: &mut Context<Self>) {
         let t0 = Instant::now();
         info!("loading directory");
-        self.current_dir = path.clone();
+        self.current_dir.clone_from(&path);
         self.selected_index = None;
         self.entries.clear();
         self.visible_entries.clear();
@@ -205,14 +210,14 @@ impl GroveApp {
     pub(crate) fn navigate_to(
         &mut self,
         path: PathBuf,
-        window: &mut Window,
+        window: &Window,
         cx: &mut Context<Self>,
     ) {
         debug!(path = %path.display(), "navigate_to");
         self.start_loading(path, window, cx);
     }
 
-    pub(crate) fn navigate_up(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+    pub(crate) fn navigate_up(&mut self, window: &Window, cx: &mut Context<Self>) {
         if let Some(parent) = self.current_dir.parent() {
             let parent = parent.to_path_buf();
             self.start_loading(parent, window, cx);

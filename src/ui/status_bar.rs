@@ -1,10 +1,13 @@
 use std::num::NonZeroUsize;
 
-use gpui::*;
+use gpui::{
+    div, font, hsla, px, rgb, Context, IntoElement, ParentElement, Pixels, Styled, TextRun,
+    Window,
+};
 use lru::LruCache;
 
 use crate::app::GroveApp;
-use crate::theme::*;
+use crate::theme::{BG_SURFACE, BORDER_COLOR, TEXT_MUTED};
 
 // Must match the font_family set on the status bar container
 const STATUS_FONT: &str = "sans-serif";
@@ -19,8 +22,8 @@ const SEP: &str = "  ·  ";
 
 const MEASURE_CACHE_CAP: usize = 256;
 
-/// Cached text measurement. Keyed on (text, font_size_bits) to avoid float hashing.
-pub(crate) struct TextMeasureCache {
+/// Cached text measurement. Keyed on (text, `font_size_bits`) to avoid float hashing.
+pub struct TextMeasureCache {
     inner: LruCache<(String, u32), Pixels>,
 }
 
@@ -87,7 +90,7 @@ fn smart_truncate_px(
     let mut best = 0usize;
 
     while lo <= hi {
-        let mid = (lo + hi) / 2;
+        let mid = usize::midpoint(lo, hi);
         let candidate: String = stem_chars[..mid]
             .iter()
             .copied()
@@ -111,7 +114,7 @@ fn smart_truncate_px(
 
 /// Cache key for the truncation result itself.
 #[derive(Clone, PartialEq, Eq, Hash)]
-pub(crate) struct TruncationKey {
+pub struct TruncationKey {
     selected_index: usize,
     viewport_width_bits: u32,
     show_hidden: bool,
@@ -121,7 +124,7 @@ pub(crate) struct TruncationKey {
 impl GroveApp {
     pub(crate) fn render_status_bar(
         &mut self,
-        window: &mut Window,
+        window: &Window,
         _cx: &mut Context<Self>,
     ) -> impl IntoElement {
         let total = self.visible_entries.len();

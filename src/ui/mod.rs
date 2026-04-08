@@ -1,4 +1,4 @@
 mod file_list;
 mod sidebar;
-pub(crate) mod status_bar;
+pub mod status_bar;
 mod toolbar;
