@@ -1,0 +1,33 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended",
+    ":semanticCommits",
+    "helpers:pinGitHubActionDigests"
+  ],
+  "minimumReleaseAge": "3 days",
+  "packageRules": [
+    {
+      "description": "Group all cargo crate updates",
+      "matchManagers": ["cargo"],
+      "groupName": "cargo dependencies"
+    },
+    {
+      "description": "Group all GitHub Actions updates",
+      "matchManagers": ["github-actions"],
+      "groupName": "github-actions"
+    },
+    {
+      "description": "gpui and gpui_platform are pinned to a git rev — Renovate cannot manage these",
+      "matchManagers": ["cargo"],
+      "matchPackageNames": ["gpui", "gpui_platform"],
+      "enabled": false
+    },
+    {
+      "description": "psm patch override tracks a git branch — Renovate cannot manage this",
+      "matchManagers": ["cargo"],
+      "matchPackageNames": ["psm"],
+      "enabled": false
+    }
+  ]
+}
