@@ -134,10 +134,20 @@ impl GroveApp {
     pub(crate) fn render_status_bar(
         &mut self,
         window: &Window,
-        _cx: &mut Context<Self>,
+        cx: &Context<Self>,
     ) -> impl IntoElement {
-        let total = self.visible_entries.len();
-        let hidden_count = self.entries.len().saturating_sub(total);
+        // Read delegate data from table state
+        let (total, all_count, selected_entry) =
+            self.table_state.as_ref().map_or((0, 0, None), |state| {
+                let state = state.read(cx);
+                let d = state.delegate();
+                let selected = state
+                    .selected_row()
+                    .and_then(|row| d.visible.get(row).map(|&ei| d.entries[ei].clone()));
+                (d.visible.len(), d.entries.len(), selected)
+            });
+
+        let hidden_count = all_count.saturating_sub(total);
 
         let item_text = match total {
             0 => "Empty directory".to_string(),
@@ -153,64 +163,53 @@ impl GroveApp {
 
         let left_str = format!("{item_text}{hidden_text}");
 
-        let right = if let Some(vi) = self.selected_index {
-            if let Some(&ei) = self.visible_entries.get(vi) {
-                let entry = &self.entries[ei];
-                let viewport_width = window.viewport_size().width;
+        let right = if let Some(entry) = selected_entry {
+            let viewport_width = window.viewport_size().width;
 
-                let key = TruncationKey {
-                    entry_name: entry.name.clone(),
-                    viewport_width_bits: f32::from(viewport_width).to_bits(),
-                    show_hidden: self.show_hidden,
-                    entry_count: self.entries.len(),
-                };
+            let key = TruncationKey {
+                entry_name: entry.name.clone(),
+                viewport_width_bits: f32::from(viewport_width).to_bits(),
+                show_hidden: self.show_hidden,
+                entry_count: all_count,
+            };
 
-                let (display_name, size_str) = if self.truncation_cache.as_ref() == Some(&key) {
-                    // Cache hit — reuse previous result
-                    self.truncation_result.clone()
-                } else {
-                    let cache = &mut self.measure_cache;
-                    let available_px = viewport_width - px(STATUS_PADDING_PX);
-                    let left_px = cache.measure(window, &left_str, STATUS_FONT_PX);
-                    let sep_px = cache.measure(window, SEP, STATUS_FONT_PX);
-
-                    let size_str = if entry.is_dir {
-                        String::new()
-                    } else {
-                        format!(" — {}", entry.size_display)
-                    };
-                    let size_px = cache.measure(window, &size_str, STATUS_FONT_PX);
-
-                    let name_budget_px = (available_px - left_px - sep_px - size_px).max(px(0.0));
-                    let display_name = smart_truncate_px(
-                        cache,
-                        window,
-                        &entry.name,
-                        name_budget_px,
-                        STATUS_FONT_PX,
-                    );
-
-                    self.truncation_cache = Some(key);
-                    self.truncation_result = (display_name.clone(), size_str.clone());
-                    (display_name, size_str)
-                };
-
-                let mut group = div()
-                    .flex()
-                    .flex_row()
-                    .items_center()
-                    .flex_none()
-                    .child(SEP)
-                    .child(display_name);
-
-                if !size_str.is_empty() {
-                    group = group.child(size_str);
-                }
-
-                group
+            let (display_name, size_str) = if self.truncation_cache.as_ref() == Some(&key) {
+                self.truncation_result.clone()
             } else {
-                div()
+                let cache = &mut self.measure_cache;
+                let available_px = viewport_width - px(STATUS_PADDING_PX);
+                let left_px = cache.measure(window, &left_str, STATUS_FONT_PX);
+                let sep_px = cache.measure(window, SEP, STATUS_FONT_PX);
+
+                let size_str = if entry.is_dir {
+                    String::new()
+                } else {
+                    format!(" — {}", entry.size_display)
+                };
+                let size_px = cache.measure(window, &size_str, STATUS_FONT_PX);
+
+                let name_budget_px = (available_px - left_px - sep_px - size_px).max(px(0.0));
+                let display_name =
+                    smart_truncate_px(cache, window, &entry.name, name_budget_px, STATUS_FONT_PX);
+
+                self.truncation_cache = Some(key);
+                self.truncation_result = (display_name.clone(), size_str.clone());
+                (display_name, size_str)
+            };
+
+            let mut group = div()
+                .flex()
+                .flex_row()
+                .items_center()
+                .flex_none()
+                .child(SEP)
+                .child(display_name);
+
+            if !size_str.is_empty() {
+                group = group.child(size_str);
             }
+
+            group
         } else {
             div()
         };

@@ -125,8 +125,7 @@ impl GroveApp {
                     )
                     .on_click(cx.listener(|this, _event, _window, cx| {
                         this.show_hidden = !this.show_hidden;
-                        this.rebuild_visible();
-                        cx.notify();
+                        this.rebuild_visible(cx);
                     })),
             )
             .child(

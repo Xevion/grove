@@ -9,6 +9,8 @@ pub mod ui;
 #[cfg(target_family = "wasm")]
 use gpui::{App, AppCell, AppContext, Application, WindowOptions};
 #[cfg(target_family = "wasm")]
+use gpui_component::Root;
+#[cfg(target_family = "wasm")]
 use wasm_bindgen::prelude::*;
 
 #[cfg(target_family = "wasm")]
@@ -59,10 +61,13 @@ pub fn run() -> Result<(), JsValue> {
     let app = unsafe { std::mem::transmute::<WasmApp, Application>(wasm_app) };
 
     app.run(|cx: &mut App| {
+        gpui_component::init(cx);
+        crate::theme::apply_grove_theme(cx);
         app::register_keybindings(cx);
 
-        match cx.open_window(WindowOptions::default(), |_window, cx| {
-            cx.new(GroveApp::new)
+        match cx.open_window(WindowOptions::default(), |window, cx| {
+            let view = cx.new(GroveApp::new);
+            cx.new(|cx| Root::new(view, window, cx))
         }) {
             Ok(_) => cx.activate(true),
             Err(e) => {

@@ -1,5 +1,5 @@
 pub mod column_table;
-mod file_list;
+pub mod file_table;
 mod sidebar;
 pub mod status_bar;
 mod toolbar;

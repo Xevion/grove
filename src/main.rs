@@ -1,9 +1,11 @@
 use gpui::{App, AppContext, Bounds, TitlebarOptions, WindowBounds, WindowOptions, px, size};
+use gpui_component::Root;
 use tracing::info;
 use tracing_subscriber::EnvFilter;
 
 use grove::app::{self, GroveApp};
 use grove::assets::Assets;
+use grove::theme::apply_grove_theme;
 
 fn init_tracing() {
     let filter =
@@ -23,6 +25,8 @@ fn main() {
     gpui_platform::application()
         .with_assets(Assets)
         .run(|cx: &mut App| {
+            gpui_component::init(cx);
+            apply_grove_theme(cx);
             app::register_keybindings(cx);
 
             let options = WindowOptions {
@@ -38,8 +42,11 @@ fn main() {
                 ..Default::default()
             };
 
-            cx.open_window(options, |_window, cx| cx.new(GroveApp::new))
-                .unwrap();
+            cx.open_window(options, |window, cx| {
+                let view = cx.new(GroveApp::new);
+                cx.new(|cx| Root::new(view, window, cx))
+            })
+            .unwrap();
 
             cx.activate(true);
         });
