@@ -105,7 +105,7 @@ impl GroveApp {
                     }),
                 )
                 .flex_1()
-                .track_scroll(self.scroll_handle.clone()),
+                .track_scroll(&self.scroll_handle),
             )
             .into_any_element()
     }

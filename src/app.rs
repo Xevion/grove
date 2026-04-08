@@ -352,7 +352,7 @@ impl Render for GroveApp {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         if self.needs_initial_load {
             self.needs_initial_load = false;
-            window.focus(&self.focus_handle);
+            window.focus(&self.focus_handle, cx);
             let cwd = self.current_dir.clone();
             self.start_loading(cwd, window, cx);
         }

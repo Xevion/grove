@@ -6,9 +6,7 @@ mod model;
 mod theme;
 pub(crate) mod ui;
 
-use gpui::{
-    px, size, App, AppContext, Application, Bounds, TitlebarOptions, WindowBounds, WindowOptions,
-};
+use gpui::{px, size, App, AppContext, Bounds, TitlebarOptions, WindowBounds, WindowOptions};
 use tracing::info;
 use tracing_subscriber::EnvFilter;
 
@@ -30,7 +28,9 @@ fn init_tracing() {
 fn main() {
     init_tracing();
 
-    Application::new().with_assets(Assets).run(|cx: &mut App| {
+    gpui_platform::application()
+        .with_assets(Assets)
+        .run(|cx: &mut App| {
         app::register_keybindings(cx);
 
         let options = WindowOptions {
