@@ -125,7 +125,6 @@ impl ColumnTableState {
             .items_center()
             .px_3()
             .py_1()
-            .mx_1()
             .border_b_1()
             .border_color(rgb(BORDER_COLOR))
             .text_xs()

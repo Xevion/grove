@@ -7,12 +7,12 @@ use gpui::{
 };
 
 use crate::app::GroveApp;
-use crate::theme::{ACCENT, BG_HOVER, BG_SURFACE, TEXT_MUTED, TEXT_PRIMARY};
+use crate::theme::{ACCENT, BG_HOVER, BG_SELECTED, BG_SELECTED_HOVER, TEXT_MUTED, TEXT_PRIMARY};
 use crate::ui::column_table::{ColumnResize, FILE_LIST_FONT_PX, HANDLE_WIDTH};
 use crate::ui::status_bar::smart_truncate_px;
 
-/// Row horizontal inset: `mx_1` (4px × 2 sides) + `px_3` (12px × 2 sides).
-const ROW_INSET_PX: f32 = 8.0 + 24.0;
+/// Row horizontal inset: `px_3` (12px × 2 sides).
+const ROW_INSET_PX: f32 = 24.0;
 
 /// Sidebar resize handle width.
 const SIDEBAR_HANDLE_PX: f32 = 4.0;
@@ -142,14 +142,15 @@ impl GroveApp {
                     .items_center()
                     .px_3()
                     .py(px(3.))
-                    .mx_1()
-                    .rounded_md()
                     .cursor_pointer()
-                    .text_sm()
-                    .hover(|s| s.bg(rgb(BG_HOVER)));
+                    .text_sm();
 
                 if is_selected {
-                    row = row.bg(rgb(BG_SURFACE));
+                    row = row
+                        .bg(rgb(BG_SELECTED))
+                        .hover(|s| s.bg(rgb(BG_SELECTED_HOVER)));
+                } else {
+                    row = row.hover(|s| s.bg(rgb(BG_HOVER)));
                 }
 
                 let col_count = self.column_state.columns.len();

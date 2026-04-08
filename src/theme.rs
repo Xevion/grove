@@ -1,6 +1,8 @@
 pub const BG_BASE: u32 = 0x1e_1e2e;
 pub const BG_SURFACE: u32 = 0x31_3244;
-pub const BG_HOVER: u32 = 0x45_475a;
+pub const BG_HOVER: u32 = 0x2a_2b3d;
+pub const BG_SELECTED: u32 = 0x36_3a4f;
+pub const BG_SELECTED_HOVER: u32 = 0x3e_4263;
 pub const TEXT_PRIMARY: u32 = 0xcd_d6f4;
 pub const TEXT_SECONDARY: u32 = 0xa6_adc8;
 pub const TEXT_MUTED: u32 = 0x6c_7086;
