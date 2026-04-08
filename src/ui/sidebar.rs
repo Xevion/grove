@@ -1,5 +1,5 @@
 use gpui::{
-    div, px, rgb, Context, FontWeight, InteractiveElement, IntoElement, ParentElement,
+    div, rgb, Context, FontWeight, InteractiveElement, IntoElement, ParentElement,
     SharedString, StatefulInteractiveElement, Styled,
 };
 
@@ -11,8 +11,8 @@ impl GroveApp {
         let mut sidebar = div()
             .flex()
             .flex_col()
-            .w(px(200.))
-            .min_w(px(200.))
+            .w(self.sidebar_width)
+            .min_w(self.sidebar_width)
             .bg(rgb(SIDEBAR_BG))
             .border_r_1()
             .border_color(rgb(BORDER_COLOR))

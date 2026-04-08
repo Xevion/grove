@@ -2,11 +2,14 @@ use std::cmp::Ordering;
 use std::fmt;
 use std::fs;
 use std::path::PathBuf;
-use std::time::{Duration, Instant};
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering as AtomicOrdering};
+use std::time::{Duration, Instant, SystemTime};
 
 use futures::SinkExt;
 use futures::channel::mpsc;
 use gpui::SharedString;
+use jiff::Zoned;
 use rayon::prelude::*;
 use tracing::{debug, warn};
 
@@ -22,20 +25,25 @@ pub struct FileEntry {
     pub path: PathBuf,
     pub is_dir: bool,
     pub size_display: SharedString,
+    pub modified_display: SharedString,
 }
 
 impl FileEntry {
-    pub fn new(name: String, path: PathBuf, is_dir: bool, size: u64) -> Self {
+    pub fn new(name: String, path: PathBuf, is_dir: bool, size: u64, modified: Option<SystemTime>) -> Self {
         let size_display = if is_dir {
             "—".into()
         } else {
             SharedString::from(format_size(size))
         };
+        let modified_display = modified
+            .and_then(|t| format_modified(t).ok())
+            .map_or_else(|| SharedString::from("—"), SharedString::from);
         Self {
             name: SharedString::from(name),
             path,
             is_dir,
             size_display,
+            modified_display,
         }
     }
 
@@ -70,6 +78,13 @@ pub fn format_size(size: u64) -> String {
         s if s < 1024 * 1024 * 1024 => format!("{:.1} MB", s as f64 / (1024.0 * 1024.0)),
         s => format!("{:.1} GB", s as f64 / (1024.0 * 1024.0 * 1024.0)),
     }
+}
+
+/// Formats a `SystemTime` into a human-readable string like "Apr 5, 2:30 PM".
+fn format_modified(time: SystemTime) -> Result<String, jiff::Error> {
+    let zoned = Zoned::try_from(time)?;
+    // Short month + day + time: "Apr 5, 2:30 PM"
+    Ok(zoned.strftime("%b %-d, %-I:%M %p").to_string())
 }
 
 /// Comparison function for sorting entries: directories first, then case-insensitive name.
@@ -125,7 +140,11 @@ pub fn merge_sorted(buffer: &mut Vec<FileEntry>, batch: Vec<FileEntry>) {
 /// Phase 1: readdir all entries (fast, no stat syscalls).
 /// Phase 2: stat entries in chunks via rayon, flushing sorted batches
 ///          every ~50ms for responsive UI updates.
-pub async fn read_directory_bg(path: PathBuf, mut tx: mpsc::Sender<Vec<FileEntry>>) {
+pub async fn read_directory_bg(
+    path: PathBuf,
+    mut tx: mpsc::Sender<Vec<FileEntry>>,
+    cancel: Arc<AtomicBool>,
+) {
     let t0 = Instant::now();
 
     let read_dir = match fs::read_dir(&path) {
@@ -149,6 +168,10 @@ pub async fn read_directory_bg(path: PathBuf, mut tx: mpsc::Sender<Vec<FileEntry
         })
         .collect();
 
+    if cancel.load(AtomicOrdering::Relaxed) {
+        return;
+    }
+
     let t_readdir = t0.elapsed();
     let total = raw_entries.len();
     let dir_count = raw_entries.iter().filter(|(_, _, is_dir)| *is_dir).count();
@@ -160,15 +183,22 @@ pub async fn read_directory_bg(path: PathBuf, mut tx: mpsc::Sender<Vec<FileEntry
     let mut pending = Vec::new();
 
     for chunk in raw_entries.chunks(STAT_CHUNK_SIZE) {
+        if cancel.load(AtomicOrdering::Relaxed) {
+            debug!(path = %path.display(), "directory read cancelled");
+            return;
+        }
+
         let batch: Vec<FileEntry> = chunk
             .par_iter()
             .map(|(name, path, is_dir)| {
+                let meta = fs::metadata(path).ok();
                 let size = if *is_dir {
                     0
                 } else {
-                    fs::metadata(path).map(|m| m.len()).unwrap_or(0)
+                    meta.as_ref().map_or(0, std::fs::Metadata::len)
                 };
-                FileEntry::new(name.clone(), path.clone(), *is_dir, size)
+                let modified = meta.and_then(|m| m.modified().ok());
+                FileEntry::new(name.clone(), path.clone(), *is_dir, size, modified)
             })
             .collect();
 

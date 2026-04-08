@@ -1,20 +1,26 @@
 use std::env;
 use std::path::PathBuf;
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Instant;
 
 use futures::StreamExt;
 use futures::channel::mpsc;
 use gpui::{
-    actions, div, rgb, App, AppContext, Context, FocusHandle, InteractiveElement, IntoElement,
-    KeyBinding, ParentElement, Render, ScrollStrategy, Styled, Task, UniformListScrollHandle,
-    Window,
+    actions, div, px, rgb, App, AppContext, Context, DragMoveEvent, FocusHandle,
+    InteractiveElement, IntoElement, KeyBinding, ParentElement, Pixels, Render, ScrollStrategy,
+    StatefulInteractiveElement, Styled, Task, UniformListScrollHandle, Window,
 };
 use tracing::{debug, info, instrument};
 
 use crate::fs::{Elapsed, FileEntry, merge_sorted, read_directory_bg};
 use crate::model::{Bookmark, default_bookmarks};
-use crate::theme::{BG_BASE, TEXT_PRIMARY};
+use crate::theme::{BG_BASE, BORDER_COLOR, TEXT_PRIMARY};
+use crate::ui::column_table::{ColumnDef, ColumnTableState, ColumnWidth, EmptyDrag};
 use crate::ui::status_bar::{TextMeasureCache, TruncationKey};
+
+/// Marker type for sidebar resize drags.
+struct SidebarResize;
 
 actions!(
     grove,
@@ -42,6 +48,10 @@ pub fn register_keybindings(cx: &mut App) {
     ]);
 }
 
+pub const SIDEBAR_DEFAULT_WIDTH: Pixels = px(200.);
+pub const SIDEBAR_MIN_WIDTH: Pixels = px(120.);
+pub const SIDEBAR_MAX_WIDTH: Pixels = px(400.);
+
 pub struct GroveApp {
     pub(crate) current_dir: PathBuf,
     pub(crate) entries: Vec<FileEntry>,
@@ -53,10 +63,13 @@ pub struct GroveApp {
     pub(crate) scroll_handle: UniformListScrollHandle,
     pub(crate) focus_handle: FocusHandle,
     loading_task: Option<Task<()>>,
+    loading_cancel: Option<Arc<AtomicBool>>,
     needs_initial_load: bool,
     pub(crate) measure_cache: TextMeasureCache,
     pub(crate) truncation_cache: Option<TruncationKey>,
     pub(crate) truncation_result: (String, String),
+    pub(crate) column_state: ColumnTableState,
+    pub(crate) sidebar_width: Pixels,
 }
 
 impl GroveApp {
@@ -68,6 +81,7 @@ impl GroveApp {
             bookmarks: default_bookmarks(),
             selected_index: None,
             loading_task: None,
+            loading_cancel: None,
             is_loading: true,
             show_hidden: false,
             needs_initial_load: true,
@@ -76,6 +90,33 @@ impl GroveApp {
             measure_cache: TextMeasureCache::new(),
             truncation_cache: None,
             truncation_result: (String::new(), String::new()),
+            column_state: ColumnTableState::new(vec![
+                ColumnDef {
+                    id: "icon",
+                    label: "",
+                    width: ColumnWidth::Fixed(px(24.)),
+                    min_width: px(24.),
+                },
+                ColumnDef {
+                    id: "name",
+                    label: "Name",
+                    width: ColumnWidth::Flex(1.0),
+                    min_width: px(100.),
+                },
+                ColumnDef {
+                    id: "size",
+                    label: "Size",
+                    width: ColumnWidth::Fixed(px(80.)),
+                    min_width: px(50.),
+                },
+                ColumnDef {
+                    id: "modified",
+                    label: "Modified",
+                    width: ColumnWidth::Fixed(px(120.)),
+                    min_width: px(80.),
+                },
+            ]),
+            sidebar_width: SIDEBAR_DEFAULT_WIDTH,
         }
     }
 
@@ -156,6 +197,12 @@ impl GroveApp {
     fn start_loading(&mut self, path: PathBuf, window: &Window, cx: &mut Context<Self>) {
         let t0 = Instant::now();
         info!("loading directory");
+
+        // Signal any in-flight background reader to stop
+        if let Some(cancel) = self.loading_cancel.take() {
+            cancel.store(true, Ordering::Relaxed);
+        }
+
         self.current_dir.clone_from(&path);
         self.selected_index = None;
         self.entries.clear();
@@ -164,9 +211,11 @@ impl GroveApp {
         self.scroll_handle.scroll_to_item(0, ScrollStrategy::Top);
 
         let (tx, mut rx) = mpsc::channel::<Vec<FileEntry>>(8);
+        let cancel = Arc::new(AtomicBool::new(false));
+        self.loading_cancel = Some(Arc::clone(&cancel));
 
         cx.background_spawn(async move {
-            read_directory_bg(path, tx).await;
+            read_directory_bg(path, tx, cancel).await;
         })
         .detach();
 
@@ -252,12 +301,35 @@ impl Render for GroveApp {
             .child(self.render_toolbar(cx))
             .child(
                 div()
+                    .id("content-row")
                     .flex()
                     .flex_row()
                     .flex_1()
                     .min_h_0()
                     .child(self.render_sidebar(cx))
-                    .child(self.render_file_list(cx)),
+                    .child(
+                        div()
+                            .id("sidebar-resize")
+                            .w(px(4.))
+                            .h_full()
+                            .flex_none()
+                            .cursor_col_resize()
+                            .border_r_1()
+                            .border_color(rgb(BORDER_COLOR))
+                            .hover(|s| s.bg(rgb(BORDER_COLOR)))
+                            .on_drag(SidebarResize, |_, _, _window, cx: &mut App| {
+                                cx.new(|_| EmptyDrag)
+                            }),
+                    )
+                    .child(self.render_file_list(cx))
+                    .on_drag_move::<SidebarResize>(cx.listener(
+                        |this, event: &DragMoveEvent<SidebarResize>, _window, cx| {
+                            let x = event.event.position.x;
+                            this.sidebar_width =
+                                x.clamp(SIDEBAR_MIN_WIDTH, SIDEBAR_MAX_WIDTH);
+                            cx.notify();
+                        },
+                    )),
             )
             .child(self.render_status_bar(window, cx))
     }

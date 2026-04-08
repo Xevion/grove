@@ -1,8 +1,8 @@
 use std::num::NonZeroUsize;
 
 use gpui::{
-    div, font, hsla, px, rgb, Context, IntoElement, ParentElement, Pixels, Styled, TextRun,
-    Window,
+    div, font, hsla, px, rgb, Context, IntoElement, ParentElement, Pixels, SharedString, Styled,
+    TextRun, Window,
 };
 use lru::LruCache;
 
@@ -34,8 +34,8 @@ impl TextMeasureCache {
         }
     }
 
-    fn measure(&mut self, window: &Window, text: &str) -> Pixels {
-        let key = (text.to_string(), STATUS_FONT_PX.to_bits());
+    pub fn measure(&mut self, window: &Window, text: &str, font_size: f32) -> Pixels {
+        let key = (text.to_string(), font_size.to_bits());
         if let Some(&cached) = self.inner.get(&key) {
             return cached;
         }
@@ -49,7 +49,7 @@ impl TextMeasureCache {
         };
         let width = window
             .text_system()
-            .shape_line(text.to_string().into(), px(STATUS_FONT_PX), &[run], None)
+            .shape_line(key.0.clone().into(), px(font_size), &[run], None)
             .width;
         self.inner.put(key, width);
         width
@@ -63,13 +63,14 @@ impl TextMeasureCache {
 ///
 /// `budget.jpeg` at 60px → `bud….jpeg`
 /// `noext` at 30px → `no…`
-fn smart_truncate_px(
+pub fn smart_truncate_px(
     cache: &mut TextMeasureCache,
     window: &Window,
     name: &str,
     max_px: Pixels,
+    font_size: f32,
 ) -> String {
-    if cache.measure(window, name) <= max_px {
+    if cache.measure(window, name, font_size) <= max_px {
         return name.to_string();
     }
 
@@ -79,7 +80,7 @@ fn smart_truncate_px(
     };
 
     let suffix = format!("…{ext}");
-    let suffix_px = cache.measure(window, &suffix);
+    let suffix_px = cache.measure(window, &suffix, font_size);
     if suffix_px >= max_px {
         return "…".to_string();
     }
@@ -96,7 +97,7 @@ fn smart_truncate_px(
             .copied()
             .chain(suffix.chars())
             .collect();
-        if cache.measure(window, &candidate) <= max_px {
+        if cache.measure(window, &candidate, font_size) <= max_px {
             best = mid;
             lo = mid + 1;
         } else {
@@ -115,7 +116,7 @@ fn smart_truncate_px(
 /// Cache key for the truncation result itself.
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub struct TruncationKey {
-    selected_index: usize,
+    entry_name: SharedString,
     viewport_width_bits: u32,
     show_hidden: bool,
     entry_count: usize,
@@ -150,7 +151,7 @@ impl GroveApp {
                 let viewport_width = window.viewport_size().width;
 
                 let key = TruncationKey {
-                    selected_index: vi,
+                    entry_name: entry.name.clone(),
                     viewport_width_bits: f32::from(viewport_width).to_bits(),
                     show_hidden: self.show_hidden,
                     entry_count: self.entries.len(),
@@ -162,19 +163,19 @@ impl GroveApp {
                 } else {
                     let cache = &mut self.measure_cache;
                     let available_px = viewport_width - px(STATUS_PADDING_PX);
-                    let left_px = cache.measure(window, &left_str);
-                    let sep_px = cache.measure(window, SEP);
+                    let left_px = cache.measure(window, &left_str, STATUS_FONT_PX);
+                    let sep_px = cache.measure(window, SEP, STATUS_FONT_PX);
 
                     let size_str = if entry.is_dir {
                         String::new()
                     } else {
                         format!(" — {}", entry.size_display)
                     };
-                    let size_px = cache.measure(window, &size_str);
+                    let size_px = cache.measure(window, &size_str, STATUS_FONT_PX);
 
                     let name_budget_px = (available_px - left_px - sep_px - size_px).max(px(0.0));
                     let display_name =
-                        smart_truncate_px(cache, window, &entry.name, name_budget_px);
+                        smart_truncate_px(cache, window, &entry.name, name_budget_px, STATUS_FONT_PX);
 
                     self.truncation_cache = Some(key);
                     self.truncation_result = (display_name.clone(), size_str.clone());
