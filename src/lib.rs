@@ -7,7 +7,7 @@ pub mod theme;
 pub mod ui;
 
 #[cfg(target_family = "wasm")]
-use gpui::{App, AppContext, WindowOptions};
+use gpui::{App, AppCell, AppContext, Application, WindowOptions};
 #[cfg(target_family = "wasm")]
 use wasm_bindgen::prelude::*;
 
@@ -40,14 +40,20 @@ fn show_wasm_error(msg: &str) {
 pub fn run() -> Result<(), JsValue> {
     gpui_platform::web_init();
 
-    // Application::run() consumes self and clones the inner Rc into the
-    // platform callback. In WASM, run() returns immediately (async event
-    // loop), and the callback's Rc clone keeps the AppCell alive. No leak
-    // hack needed — the consumed Application drops its Rc (refcount 2→1)
-    // while the closure retains the other.
-    gpui_platform::single_threaded_web()
-        .with_assets(Assets)
-        .run(|cx: &mut App| {
+    let app = gpui_platform::single_threaded_web()
+        .with_assets(Assets);
+
+    // In WASM, Application::run() returns immediately (async event loop).
+    // The platform callback's Rc<AppCell> clone is a one-shot FnOnce that
+    // gets dropped after firing, bringing refcount to 0 and destroying
+    // all JS-bound closures (requestAnimationFrame, ResizeObserver, etc.).
+    // Leak an extra Rc clone to keep the AppCell alive for the page lifetime.
+    struct WasmApp(std::rc::Rc<AppCell>);
+    let wasm_app = unsafe { std::mem::transmute::<Application, WasmApp>(app) };
+    std::mem::forget(wasm_app.0.clone());
+    let app = unsafe { std::mem::transmute::<WasmApp, Application>(wasm_app) };
+
+    app.run(|cx: &mut App| {
         app::register_keybindings(cx);
 
         match cx.open_window(WindowOptions::default(), |_window, cx| {
