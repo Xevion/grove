@@ -18,6 +18,7 @@ impl GroveApp {
             .gap_1()
             .px_3()
             .py_2()
+            .h(rems(2.5))
             .bg(rgb(BG_SURFACE))
             .border_b_1()
             .border_color(rgb(BORDER_COLOR))
