@@ -19,6 +19,7 @@ pub enum ColumnKind {
 
 /// Specification for a single column in the file table.
 #[derive(Clone, Debug)]
+#[allow(clippy::struct_excessive_bools)]
 pub struct ColumnSpec {
     pub id: &'static str,
     pub name: &'static str,
@@ -72,12 +73,14 @@ pub const COLUMN_SPECS: &[ColumnSpec] = &[
 ];
 
 /// Resolve column widths given available container width.
+#[must_use]
 pub fn resolve_widths(specs: &[ColumnSpec], container_width: Pixels) -> Vec<Pixels> {
     let non_fill: Pixels = specs
         .iter()
         .map(|s| match &s.kind {
-            ColumnKind::Fixed(w) | ColumnKind::ContentFit(w) => *w,
-            ColumnKind::Fill {
+            ColumnKind::Fixed(w)
+            | ColumnKind::ContentFit(w)
+            | ColumnKind::Fill {
                 pinned: Some(w), ..
             } => *w,
             ColumnKind::Fill { .. } => px(0.),
@@ -91,7 +94,9 @@ pub fn resolve_widths(specs: &[ColumnSpec], container_width: Pixels) -> Vec<Pixe
 
     let remaining = (container_width - non_fill).max(px(0.));
     let per_fill = if fill_count > 0 {
-        remaining / fill_count as f32
+        #[allow(clippy::cast_precision_loss)]
+        let per_fill = remaining / fill_count as f32;
+        per_fill
     } else {
         px(0.)
     };
@@ -99,8 +104,9 @@ pub fn resolve_widths(specs: &[ColumnSpec], container_width: Pixels) -> Vec<Pixe
     specs
         .iter()
         .map(|s| match &s.kind {
-            ColumnKind::Fixed(w) | ColumnKind::ContentFit(w) => *w,
-            ColumnKind::Fill {
+            ColumnKind::Fixed(w)
+            | ColumnKind::ContentFit(w)
+            | ColumnKind::Fill {
                 pinned: Some(w), ..
             } => *w,
             ColumnKind::Fill { min, pinned: None } => per_fill.max(*min),
@@ -147,19 +153,19 @@ impl FileTableDelegate {
 
     /// Pin the Name column (index 1) to a specific pixel width after user resize.
     pub fn pin_name_column(&mut self, width: Pixels) {
-        if let Some(spec) = self.column_specs.get_mut(1) {
-            if let ColumnKind::Fill { pinned, .. } = &mut spec.kind {
-                *pinned = Some(width);
-            }
+        if let Some(spec) = self.column_specs.get_mut(1)
+            && let ColumnKind::Fill { pinned, .. } = &mut spec.kind
+        {
+            *pinned = Some(width);
         }
     }
 
     /// Reset the Name column to fill mode.
     pub fn unpin_name_column(&mut self) {
-        if let Some(spec) = self.column_specs.get_mut(1) {
-            if let ColumnKind::Fill { pinned, .. } = &mut spec.kind {
-                *pinned = None;
-            }
+        if let Some(spec) = self.column_specs.get_mut(1)
+            && let ColumnKind::Fill { pinned, .. } = &mut spec.kind
+        {
+            *pinned = None;
         }
     }
 

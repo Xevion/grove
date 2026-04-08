@@ -297,7 +297,7 @@ mod mock {
         is_dir: bool,
         size: &'static str,
         modified: &'static str,
-        children: &'static [MockFile],
+        children: &'static [Self],
     }
 
     const MOCK_TREE: &[MockFile] = &[
@@ -514,6 +514,7 @@ mod mock {
         current
     }
 
+    #[must_use]
     pub fn mock_entries_for(path: &std::path::Path) -> Vec<FileEntry> {
         let children = find_children(path);
         let mut entries: Vec<FileEntry> = children

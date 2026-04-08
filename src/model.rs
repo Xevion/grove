@@ -36,6 +36,7 @@ pub fn default_bookmarks() -> Vec<Bookmark> {
 }
 
 #[cfg(target_family = "wasm")]
+#[must_use]
 pub fn default_bookmarks() -> Vec<Bookmark> {
     vec![
         Bookmark {

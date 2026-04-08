@@ -1,5 +1,6 @@
 [graph]
 all-features = true
+exclude = ["gpui-component", "gpui-component-assets", "gpui-component-macros"]
 
 [advisories]
 ignore = [
@@ -7,6 +8,7 @@ ignore = [
     "RUSTSEC-2025-0052", # async-std unmaintained
     "RUSTSEC-2024-0384", # instant unmaintained
     "RUSTSEC-2024-0436", # paste unmaintained
+    "RUSTSEC-2025-0134", # rustls-pemfile unmaintained (via zed-reqwest)
 ]
 
 [bans]

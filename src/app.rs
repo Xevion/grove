@@ -17,6 +17,7 @@ use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
 use tracing::debug;
 
+#[cfg(not(target_family = "wasm"))]
 use crate::fs::FileEntry;
 use crate::model::{Bookmark, default_bookmarks};
 use crate::theme::{BG_BASE, BORDER_COLOR, TEXT_PRIMARY};
@@ -145,11 +146,10 @@ impl GroveApp {
                         table_state.update(cx, |state, cx| {
                             let d = state.delegate_mut();
                             for (ix, &new_width) in widths.iter().enumerate() {
-                                if let Some(spec) = d.column_specs.get_mut(ix) {
-                                    if let ColumnKind::Fill { pinned, .. } = &mut spec.kind {
+                                if let Some(spec) = d.column_specs.get_mut(ix)
+                                    && let ColumnKind::Fill { pinned, .. } = &mut spec.kind {
                                         *pinned = Some(new_width);
                                     }
-                                }
                             }
                             state.refresh(cx);
                         });
@@ -330,6 +330,7 @@ impl GroveApp {
     }
 
     #[cfg(target_family = "wasm")]
+    #[allow(clippy::needless_pass_by_value)] // signature must match non-WASM variant
     fn start_loading(&mut self, path: PathBuf, window: &mut Window, cx: &mut Context<Self>) {
         self.ensure_table_state(window, cx);
         self.current_dir.clone_from(&path);

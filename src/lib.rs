@@ -44,6 +44,11 @@ fn show_wasm_error(msg: &str) {
 }
 
 #[cfg(target_family = "wasm")]
+struct WasmApp(std::rc::Rc<AppCell>);
+
+/// # Errors
+/// Returns `JsValue` if the WASM platform or window initialization fails.
+#[cfg(target_family = "wasm")]
 #[wasm_bindgen]
 pub fn run() -> Result<(), JsValue> {
     gpui_platform::web_init();
@@ -55,7 +60,6 @@ pub fn run() -> Result<(), JsValue> {
     // gets dropped after firing, bringing refcount to 0 and destroying
     // all JS-bound closures (requestAnimationFrame, ResizeObserver, etc.).
     // Leak an extra Rc clone to keep the AppCell alive for the page lifetime.
-    struct WasmApp(std::rc::Rc<AppCell>);
     let wasm_app = unsafe { std::mem::transmute::<Application, WasmApp>(app) };
     std::mem::forget(wasm_app.0.clone());
     let app = unsafe { std::mem::transmute::<WasmApp, Application>(wasm_app) };

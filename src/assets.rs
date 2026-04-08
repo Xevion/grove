@@ -7,6 +7,16 @@ use rust_embed::RustEmbed;
 #[folder = "assets"]
 struct GroveAssets;
 
+#[cfg(not(target_family = "wasm"))]
+const fn component_assets() -> gpui_component_assets::Assets {
+    gpui_component_assets::Assets
+}
+
+#[cfg(target_family = "wasm")]
+fn component_assets() -> gpui_component_assets::Assets {
+    gpui_component_assets::Assets::default()
+}
+
 /// Composite asset source: checks Grove's embedded assets first,
 /// then falls back to gpui-component's icon assets.
 pub struct Assets;
@@ -16,7 +26,7 @@ impl AssetSource for Assets {
         if let Some(f) = GroveAssets::get(path) {
             return Ok(Some(f.data));
         }
-        gpui_component_assets::Assets.load(path)
+        component_assets().load(path)
     }
 
     fn list(&self, path: &str) -> anyhow::Result<Vec<SharedString>> {
@@ -24,7 +34,7 @@ impl AssetSource for Assets {
             .filter(|p| p.starts_with(path))
             .map(SharedString::from)
             .collect();
-        items.extend(gpui_component_assets::Assets.list(path)?);
+        items.extend(component_assets().list(path)?);
         Ok(items)
     }
 }
