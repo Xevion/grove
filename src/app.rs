@@ -10,6 +10,7 @@ use tracing::{debug, info, instrument};
 use crate::fs::{BATCH_SIZE, Elapsed, FileEntry, read_directory_bg, sort_entries};
 use crate::model::{Bookmark, default_bookmarks};
 use crate::theme::*;
+use crate::ui::status_bar::{TextMeasureCache, TruncationKey};
 
 pub struct GroveApp {
     pub(crate) current_dir: PathBuf,
@@ -23,6 +24,9 @@ pub struct GroveApp {
     pub(crate) focus_handle: FocusHandle,
     loading_task: Option<Task<()>>,
     needs_initial_load: bool,
+    pub(crate) measure_cache: TextMeasureCache,
+    pub(crate) truncation_cache: Option<TruncationKey>,
+    pub(crate) truncation_result: (String, String),
 }
 
 impl GroveApp {
@@ -39,6 +43,9 @@ impl GroveApp {
             needs_initial_load: true,
             scroll_handle: UniformListScrollHandle::default(),
             focus_handle: cx.focus_handle(),
+            measure_cache: TextMeasureCache::new(),
+            truncation_cache: None,
+            truncation_result: (String::new(), String::new()),
         }
     }
 

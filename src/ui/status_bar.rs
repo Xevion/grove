@@ -1,4 +1,7 @@
+use std::num::NonZeroUsize;
+
 use gpui::*;
+use lru::LruCache;
 
 use crate::app::GroveApp;
 use crate::theme::*;
@@ -14,20 +17,40 @@ const STATUS_PADDING_PX: f32 = 24.0;
 
 const SEP: &str = "  ·  ";
 
-/// Measures the exact rendered pixel width of `text` using the text shaper.
-fn measure_text(window: &Window, text: &str) -> Pixels {
-    let run = TextRun {
-        len: text.len(),
-        font: font(STATUS_FONT),
-        color: hsla(0.0, 0.0, 0.0, 1.0),
-        background_color: None,
-        underline: None,
-        strikethrough: None,
-    };
-    window
-        .text_system()
-        .shape_line(text.to_string().into(), px(STATUS_FONT_PX), &[run], None)
-        .width
+const MEASURE_CACHE_CAP: usize = 256;
+
+/// Cached text measurement. Keyed on (text, font_size_bits) to avoid float hashing.
+pub(crate) struct TextMeasureCache {
+    inner: LruCache<(String, u32), Pixels>,
+}
+
+impl TextMeasureCache {
+    pub fn new() -> Self {
+        Self {
+            inner: LruCache::new(NonZeroUsize::new(MEASURE_CACHE_CAP).unwrap()),
+        }
+    }
+
+    fn measure(&mut self, window: &Window, text: &str) -> Pixels {
+        let key = (text.to_string(), STATUS_FONT_PX.to_bits());
+        if let Some(&cached) = self.inner.get(&key) {
+            return cached;
+        }
+        let run = TextRun {
+            len: text.len(),
+            font: font(STATUS_FONT),
+            color: hsla(0.0, 0.0, 0.0, 1.0),
+            background_color: None,
+            underline: None,
+            strikethrough: None,
+        };
+        let width = window
+            .text_system()
+            .shape_line(text.to_string().into(), px(STATUS_FONT_PX), &[run], None)
+            .width;
+        self.inner.put(key, width);
+        width
+    }
 }
 
 /// Truncates `name` to fit within `max_px`, preserving the file extension.
@@ -37,8 +60,13 @@ fn measure_text(window: &Window, text: &str) -> Pixels {
 ///
 /// `budget.jpeg` at 60px → `bud….jpeg`
 /// `noext` at 30px → `no…`
-fn smart_truncate_px(window: &Window, name: &str, max_px: Pixels) -> String {
-    if measure_text(window, name) <= max_px {
+fn smart_truncate_px(
+    cache: &mut TextMeasureCache,
+    window: &Window,
+    name: &str,
+    max_px: Pixels,
+) -> String {
+    if cache.measure(window, name) <= max_px {
         return name.to_string();
     }
 
@@ -48,7 +76,7 @@ fn smart_truncate_px(window: &Window, name: &str, max_px: Pixels) -> String {
     };
 
     let suffix = format!("…{ext}");
-    let suffix_px = measure_text(window, &suffix);
+    let suffix_px = cache.measure(window, &suffix);
     if suffix_px >= max_px {
         return "…".to_string();
     }
@@ -60,9 +88,12 @@ fn smart_truncate_px(window: &Window, name: &str, max_px: Pixels) -> String {
 
     while lo <= hi {
         let mid = (lo + hi) / 2;
-        let candidate: String =
-            stem_chars[..mid].iter().copied().chain(suffix.chars()).collect();
-        if measure_text(window, &candidate) <= max_px {
+        let candidate: String = stem_chars[..mid]
+            .iter()
+            .copied()
+            .chain(suffix.chars())
+            .collect();
+        if cache.measure(window, &candidate) <= max_px {
             best = mid;
             lo = mid + 1;
         } else {
@@ -76,6 +107,15 @@ fn smart_truncate_px(window: &Window, name: &str, max_px: Pixels) -> String {
 
     let truncated_stem: String = stem_chars[..best].iter().collect();
     format!("{truncated_stem}…{ext}")
+}
+
+/// Cache key for the truncation result itself.
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub(crate) struct TruncationKey {
+    selected_index: usize,
+    viewport_width_bits: u32,
+    show_hidden: bool,
+    entry_count: usize,
 }
 
 impl GroveApp {
@@ -101,24 +141,42 @@ impl GroveApp {
 
         let left_str = format!("{item_text}{hidden_text}");
 
-        // Build right-side elements (filename + size) with pixel-accurate truncation
         let right = if let Some(vi) = self.selected_index {
             if let Some(&ei) = self.visible_entries.get(vi) {
                 let entry = &self.entries[ei];
-                let available_px = window.viewport_size().width - px(STATUS_PADDING_PX);
-                let left_px = measure_text(window, &left_str);
-                let sep_px = measure_text(window, SEP);
+                let viewport_width = window.viewport_size().width;
 
-                let size_str = if entry.is_dir {
-                    String::new()
-                } else {
-                    format!(" — {}", entry.size_display)
+                let key = TruncationKey {
+                    selected_index: vi,
+                    viewport_width_bits: f32::from(viewport_width).to_bits(),
+                    show_hidden: self.show_hidden,
+                    entry_count: self.entries.len(),
                 };
-                let size_px = measure_text(window, &size_str);
 
-                let name_budget_px =
-                    (available_px - left_px - sep_px - size_px).max(px(0.0));
-                let display_name = smart_truncate_px(window, &entry.name, name_budget_px);
+                let (display_name, size_str) = if self.truncation_cache.as_ref() == Some(&key) {
+                    // Cache hit — reuse previous result
+                    self.truncation_result.clone()
+                } else {
+                    let cache = &mut self.measure_cache;
+                    let available_px = viewport_width - px(STATUS_PADDING_PX);
+                    let left_px = cache.measure(window, &left_str);
+                    let sep_px = cache.measure(window, SEP);
+
+                    let size_str = if entry.is_dir {
+                        String::new()
+                    } else {
+                        format!(" — {}", entry.size_display)
+                    };
+                    let size_px = cache.measure(window, &size_str);
+
+                    let name_budget_px = (available_px - left_px - sep_px - size_px).max(px(0.0));
+                    let display_name =
+                        smart_truncate_px(cache, window, &entry.name, name_budget_px);
+
+                    self.truncation_cache = Some(key);
+                    self.truncation_result = (display_name.clone(), size_str.clone());
+                    (display_name, size_str)
+                };
 
                 let mut group = div()
                     .flex()
@@ -156,4 +214,3 @@ impl GroveApp {
             .child(right)
     }
 }
-
