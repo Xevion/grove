@@ -1,0 +1,9 @@
+pub const BG_BASE: u32 = 0x1e1e2e;
+pub const BG_SURFACE: u32 = 0x313244;
+pub const BG_HOVER: u32 = 0x45475a;
+pub const TEXT_PRIMARY: u32 = 0xcdd6f4;
+pub const TEXT_SECONDARY: u32 = 0xa6adc8;
+pub const TEXT_MUTED: u32 = 0x6c7086;
+pub const ACCENT: u32 = 0x89b4fa;
+pub const SIDEBAR_BG: u32 = 0x181825;
+pub const BORDER_COLOR: u32 = 0x313244;
