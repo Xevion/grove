@@ -1,6 +1,6 @@
 use gpui::{
-    div, rgb, Context, FontWeight, InteractiveElement, IntoElement, ParentElement, SharedString,
-    StatefulInteractiveElement, Styled,
+    Context, FontWeight, InteractiveElement, IntoElement, ParentElement, SharedString,
+    StatefulInteractiveElement, Styled, div, rgb,
 };
 
 use crate::app::GroveApp;

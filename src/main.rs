@@ -1,4 +1,4 @@
-use gpui::{px, size, App, AppContext, Bounds, TitlebarOptions, WindowBounds, WindowOptions};
+use gpui::{App, AppContext, Bounds, TitlebarOptions, WindowBounds, WindowOptions, px, size};
 use tracing::info;
 use tracing_subscriber::EnvFilter;
 

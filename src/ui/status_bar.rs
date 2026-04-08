@@ -1,8 +1,8 @@
 use std::num::NonZeroUsize;
 
 use gpui::{
-    div, font, hsla, px, rgb, Context, IntoElement, ParentElement, Pixels, SharedString, Styled,
-    TextRun, Window,
+    Context, IntoElement, ParentElement, Pixels, SharedString, Styled, TextRun, Window, div, font,
+    hsla, px, rgb,
 };
 use lru::LruCache;
 
@@ -182,8 +182,13 @@ impl GroveApp {
                     let size_px = cache.measure(window, &size_str, STATUS_FONT_PX);
 
                     let name_budget_px = (available_px - left_px - sep_px - size_px).max(px(0.0));
-                    let display_name =
-                        smart_truncate_px(cache, window, &entry.name, name_budget_px, STATUS_FONT_PX);
+                    let display_name = smart_truncate_px(
+                        cache,
+                        window,
+                        &entry.name,
+                        name_budget_px,
+                        STATUS_FONT_PX,
+                    );
 
                     self.truncation_cache = Some(key);
                     self.truncation_result = (display_name.clone(), size_str.clone());

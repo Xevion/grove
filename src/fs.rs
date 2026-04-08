@@ -134,7 +134,12 @@ mod native {
         }
     }
 
-    #[allow(clippy::cast_precision_loss, clippy::cast_possible_truncation, clippy::cast_sign_loss, clippy::cast_possible_wrap)]
+    #[allow(
+        clippy::cast_precision_loss,
+        clippy::cast_possible_truncation,
+        clippy::cast_sign_loss,
+        clippy::cast_possible_wrap
+    )]
     pub fn format_size(size: u64) -> String {
         const KIB: f64 = 1024.0;
         const UNITS: &[&str] = &["B", "KB", "MB", "GB", "TB", "PB", "EB", "ZB", "YB"];
@@ -154,15 +159,22 @@ mod native {
         Ok(zoned.strftime("%b %-d, %-I:%M %p").to_string())
     }
 
-    fn make_entry(name: String, path: PathBuf, is_dir: bool, size: u64, modified: Option<SystemTime>) -> FileEntry {
+    fn make_entry(
+        name: String,
+        path: PathBuf,
+        is_dir: bool,
+        size: u64,
+        modified: Option<SystemTime>,
+    ) -> FileEntry {
         let size_display = if is_dir {
             "\u{2014}".into()
         } else {
             gpui::SharedString::from(format_size(size))
         };
-        let modified_display = modified
-            .and_then(|t| format_modified(t).ok())
-            .map_or_else(|| gpui::SharedString::from("\u{2014}"), gpui::SharedString::from);
+        let modified_display = modified.and_then(|t| format_modified(t).ok()).map_or_else(
+            || gpui::SharedString::from("\u{2014}"),
+            gpui::SharedString::from,
+        );
         FileEntry::new(name, path, is_dir, size_display, modified_display)
     }
 
@@ -225,7 +237,13 @@ mod native {
                         meta.as_ref().map_or(0, std::fs::Metadata::len)
                     };
                     let modified = meta.and_then(|m| m.modified().ok());
-                    Some(make_entry(name.clone(), path.clone(), *is_dir, size, modified))
+                    Some(make_entry(
+                        name.clone(),
+                        path.clone(),
+                        *is_dir,
+                        size,
+                        modified,
+                    ))
                 })
                 .collect();
 
@@ -283,37 +301,197 @@ mod mock {
     }
 
     const MOCK_TREE: &[MockFile] = &[
-        MockFile { name: "src", is_dir: true, size: "\u{2014}", modified: "Apr 7, 2:30 PM", children: &[
-            MockFile { name: "app.rs", is_dir: false, size: "8.5 KB", modified: "Apr 7, 2:28 PM", children: &[] },
-            MockFile { name: "assets.rs", is_dir: false, size: "420 B", modified: "Apr 5, 11:02 AM", children: &[] },
-            MockFile { name: "fs.rs", is_dir: false, size: "6.1 KB", modified: "Apr 7, 2:30 PM", children: &[] },
-            MockFile { name: "icons.rs", is_dir: false, size: "3.2 KB", modified: "Apr 6, 9:15 AM", children: &[] },
-            MockFile { name: "lib.rs", is_dir: false, size: "1.1 KB", modified: "Apr 7, 1:45 PM", children: &[] },
-            MockFile { name: "main.rs", is_dir: false, size: "890 B", modified: "Apr 7, 1:45 PM", children: &[] },
-            MockFile { name: "model.rs", is_dir: false, size: "620 B", modified: "Apr 5, 3:20 PM", children: &[] },
-            MockFile { name: "theme.rs", is_dir: false, size: "340 B", modified: "Apr 4, 10:00 AM", children: &[] },
-            MockFile { name: "ui", is_dir: true, size: "\u{2014}", modified: "Apr 7, 2:25 PM", children: &[
-                MockFile { name: "column_table.rs", is_dir: false, size: "5.8 KB", modified: "Apr 6, 4:10 PM", children: &[] },
-                MockFile { name: "file_list.rs", is_dir: false, size: "4.9 KB", modified: "Apr 7, 2:25 PM", children: &[] },
-                MockFile { name: "mod.rs", is_dir: false, size: "120 B", modified: "Apr 5, 11:00 AM", children: &[] },
-                MockFile { name: "sidebar.rs", is_dir: false, size: "1.6 KB", modified: "Apr 6, 9:30 AM", children: &[] },
-                MockFile { name: "status_bar.rs", is_dir: false, size: "5.2 KB", modified: "Apr 7, 2:20 PM", children: &[] },
-                MockFile { name: "toolbar.rs", is_dir: false, size: "3.4 KB", modified: "Apr 6, 9:30 AM", children: &[] },
-            ]},
-        ]},
-        MockFile { name: "assets", is_dir: true, size: "\u{2014}", modified: "Apr 6, 9:15 AM", children: &[
-            MockFile { name: "icons", is_dir: true, size: "\u{2014}", modified: "Apr 6, 9:15 AM", children: &[
-                MockFile { name: "archive.svg", is_dir: false, size: "340 B", modified: "Apr 4, 10:00 AM", children: &[] },
-                MockFile { name: "file.svg", is_dir: false, size: "290 B", modified: "Apr 4, 10:00 AM", children: &[] },
-                MockFile { name: "folder.svg", is_dir: false, size: "310 B", modified: "Apr 4, 10:00 AM", children: &[] },
-            ]},
-        ]},
-        MockFile { name: "target", is_dir: true, size: "\u{2014}", modified: "Apr 7, 2:30 PM", children: &[] },
-        MockFile { name: ".gitignore", is_dir: false, size: "32 B", modified: "Apr 3, 9:00 AM", children: &[] },
-        MockFile { name: "Cargo.lock", is_dir: false, size: "24.3 KB", modified: "Apr 7, 1:45 PM", children: &[] },
-        MockFile { name: "Cargo.toml", is_dir: false, size: "680 B", modified: "Apr 7, 1:45 PM", children: &[] },
-        MockFile { name: "CLAUDE.md", is_dir: false, size: "1.8 KB", modified: "Apr 5, 3:20 PM", children: &[] },
-        MockFile { name: "README.md", is_dir: false, size: "2.1 KB", modified: "Apr 3, 9:00 AM", children: &[] },
+        MockFile {
+            name: "src",
+            is_dir: true,
+            size: "\u{2014}",
+            modified: "Apr 7, 2:30 PM",
+            children: &[
+                MockFile {
+                    name: "app.rs",
+                    is_dir: false,
+                    size: "8.5 KB",
+                    modified: "Apr 7, 2:28 PM",
+                    children: &[],
+                },
+                MockFile {
+                    name: "assets.rs",
+                    is_dir: false,
+                    size: "420 B",
+                    modified: "Apr 5, 11:02 AM",
+                    children: &[],
+                },
+                MockFile {
+                    name: "fs.rs",
+                    is_dir: false,
+                    size: "6.1 KB",
+                    modified: "Apr 7, 2:30 PM",
+                    children: &[],
+                },
+                MockFile {
+                    name: "icons.rs",
+                    is_dir: false,
+                    size: "3.2 KB",
+                    modified: "Apr 6, 9:15 AM",
+                    children: &[],
+                },
+                MockFile {
+                    name: "lib.rs",
+                    is_dir: false,
+                    size: "1.1 KB",
+                    modified: "Apr 7, 1:45 PM",
+                    children: &[],
+                },
+                MockFile {
+                    name: "main.rs",
+                    is_dir: false,
+                    size: "890 B",
+                    modified: "Apr 7, 1:45 PM",
+                    children: &[],
+                },
+                MockFile {
+                    name: "model.rs",
+                    is_dir: false,
+                    size: "620 B",
+                    modified: "Apr 5, 3:20 PM",
+                    children: &[],
+                },
+                MockFile {
+                    name: "theme.rs",
+                    is_dir: false,
+                    size: "340 B",
+                    modified: "Apr 4, 10:00 AM",
+                    children: &[],
+                },
+                MockFile {
+                    name: "ui",
+                    is_dir: true,
+                    size: "\u{2014}",
+                    modified: "Apr 7, 2:25 PM",
+                    children: &[
+                        MockFile {
+                            name: "column_table.rs",
+                            is_dir: false,
+                            size: "5.8 KB",
+                            modified: "Apr 6, 4:10 PM",
+                            children: &[],
+                        },
+                        MockFile {
+                            name: "file_list.rs",
+                            is_dir: false,
+                            size: "4.9 KB",
+                            modified: "Apr 7, 2:25 PM",
+                            children: &[],
+                        },
+                        MockFile {
+                            name: "mod.rs",
+                            is_dir: false,
+                            size: "120 B",
+                            modified: "Apr 5, 11:00 AM",
+                            children: &[],
+                        },
+                        MockFile {
+                            name: "sidebar.rs",
+                            is_dir: false,
+                            size: "1.6 KB",
+                            modified: "Apr 6, 9:30 AM",
+                            children: &[],
+                        },
+                        MockFile {
+                            name: "status_bar.rs",
+                            is_dir: false,
+                            size: "5.2 KB",
+                            modified: "Apr 7, 2:20 PM",
+                            children: &[],
+                        },
+                        MockFile {
+                            name: "toolbar.rs",
+                            is_dir: false,
+                            size: "3.4 KB",
+                            modified: "Apr 6, 9:30 AM",
+                            children: &[],
+                        },
+                    ],
+                },
+            ],
+        },
+        MockFile {
+            name: "assets",
+            is_dir: true,
+            size: "\u{2014}",
+            modified: "Apr 6, 9:15 AM",
+            children: &[MockFile {
+                name: "icons",
+                is_dir: true,
+                size: "\u{2014}",
+                modified: "Apr 6, 9:15 AM",
+                children: &[
+                    MockFile {
+                        name: "archive.svg",
+                        is_dir: false,
+                        size: "340 B",
+                        modified: "Apr 4, 10:00 AM",
+                        children: &[],
+                    },
+                    MockFile {
+                        name: "file.svg",
+                        is_dir: false,
+                        size: "290 B",
+                        modified: "Apr 4, 10:00 AM",
+                        children: &[],
+                    },
+                    MockFile {
+                        name: "folder.svg",
+                        is_dir: false,
+                        size: "310 B",
+                        modified: "Apr 4, 10:00 AM",
+                        children: &[],
+                    },
+                ],
+            }],
+        },
+        MockFile {
+            name: "target",
+            is_dir: true,
+            size: "\u{2014}",
+            modified: "Apr 7, 2:30 PM",
+            children: &[],
+        },
+        MockFile {
+            name: ".gitignore",
+            is_dir: false,
+            size: "32 B",
+            modified: "Apr 3, 9:00 AM",
+            children: &[],
+        },
+        MockFile {
+            name: "Cargo.lock",
+            is_dir: false,
+            size: "24.3 KB",
+            modified: "Apr 7, 1:45 PM",
+            children: &[],
+        },
+        MockFile {
+            name: "Cargo.toml",
+            is_dir: false,
+            size: "680 B",
+            modified: "Apr 7, 1:45 PM",
+            children: &[],
+        },
+        MockFile {
+            name: "CLAUDE.md",
+            is_dir: false,
+            size: "1.8 KB",
+            modified: "Apr 5, 3:20 PM",
+            children: &[],
+        },
+        MockFile {
+            name: "README.md",
+            is_dir: false,
+            size: "2.1 KB",
+            modified: "Apr 3, 9:00 AM",
+            children: &[],
+        },
     ];
 
     fn find_children(path: &std::path::Path) -> &'static [MockFile] {

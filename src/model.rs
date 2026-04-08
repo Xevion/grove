@@ -38,10 +38,35 @@ pub fn default_bookmarks() -> Vec<Bookmark> {
 #[cfg(target_family = "wasm")]
 pub fn default_bookmarks() -> Vec<Bookmark> {
     vec![
-        Bookmark { label: "Home", path: PathBuf::new(), icon: IconName::Home, exists: true },
-        Bookmark { label: "Desktop", path: PathBuf::from("Desktop"), icon: IconName::Screen, exists: true },
-        Bookmark { label: "Documents", path: PathBuf::from("Documents"), icon: IconName::FileDoc, exists: true },
-        Bookmark { label: "Downloads", path: PathBuf::from("Downloads"), icon: IconName::Download, exists: true },
-        Bookmark { label: "Projects", path: PathBuf::from("projects"), icon: IconName::Code, exists: true },
+        Bookmark {
+            label: "Home",
+            path: PathBuf::new(),
+            icon: IconName::Home,
+            exists: true,
+        },
+        Bookmark {
+            label: "Desktop",
+            path: PathBuf::from("Desktop"),
+            icon: IconName::Screen,
+            exists: true,
+        },
+        Bookmark {
+            label: "Documents",
+            path: PathBuf::from("Documents"),
+            icon: IconName::FileDoc,
+            exists: true,
+        },
+        Bookmark {
+            label: "Downloads",
+            path: PathBuf::from("Downloads"),
+            icon: IconName::Download,
+            exists: true,
+        },
+        Bookmark {
+            label: "Projects",
+            path: PathBuf::from("projects"),
+            icon: IconName::Code,
+            exists: true,
+        },
     ]
 }

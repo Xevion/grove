@@ -1,7 +1,7 @@
 use gpui::{
-    div, px, rgb, AnyElement, App, AppContext, Context, Div, ElementId, InteractiveElement,
-    IntoElement, ParentElement, Pixels, Render, SharedString, StatefulInteractiveElement, Styled,
-    Window,
+    AnyElement, App, AppContext, Context, Div, ElementId, InteractiveElement, IntoElement,
+    ParentElement, Pixels, Render, SharedString, StatefulInteractiveElement, Styled, Window, div,
+    px, rgb,
 };
 
 use crate::theme::{BORDER_COLOR, TEXT_MUTED};
@@ -165,10 +165,9 @@ impl ColumnTableState {
                             .bg(rgb(BORDER_COLOR))
                             .hover(|s| s.bg(rgb(TEXT_MUTED))),
                     )
-                    .on_drag(
-                        ColumnResize { index: i },
-                        |_, _, _window, cx: &mut App| cx.new(|_| EmptyDrag),
-                    );
+                    .on_drag(ColumnResize { index: i }, |_, _, _window, cx: &mut App| {
+                        cx.new(|_| EmptyDrag)
+                    });
 
                 header = header.child(handle);
             }

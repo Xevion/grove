@@ -1,9 +1,9 @@
 use std::ops::Range;
 
 use gpui::{
-    div, px, rems, rgb, uniform_list, AnyElement, ClickEvent, Context, DragMoveEvent, ElementId,
-    InteractiveElement, IntoElement, MouseUpEvent, ParentElement, StatefulInteractiveElement,
-    Styled, Window,
+    AnyElement, ClickEvent, Context, DragMoveEvent, ElementId, InteractiveElement, IntoElement,
+    MouseUpEvent, ParentElement, StatefulInteractiveElement, Styled, Window, div, px, rems, rgb,
+    uniform_list,
 };
 
 use crate::app::GroveApp;
@@ -38,7 +38,11 @@ impl GroveApp {
                 .gap_2()
                 .py_8()
                 .text_color(rgb(TEXT_MUTED))
-                .child(Icon::new(IconName::FolderOpen).size(rems(2.0)).color(rgb(TEXT_MUTED).into()))
+                .child(
+                    Icon::new(IconName::FolderOpen)
+                        .size(rems(2.0))
+                        .color(rgb(TEXT_MUTED).into()),
+                )
                 .child("Empty directory")
                 .into_any_element();
         }
@@ -72,11 +76,12 @@ impl GroveApp {
                     cx.notify();
                 },
             ))
-            .on_mouse_up(gpui::MouseButton::Left, cx.listener(
-                |this, _event: &MouseUpEvent, _window, _cx| {
+            .on_mouse_up(
+                gpui::MouseButton::Left,
+                cx.listener(|this, _event: &MouseUpEvent, _window, _cx| {
                     this.column_state.drag_last_x = None;
-                },
-            ));
+                }),
+            );
 
         container = container.child(self.column_state.render_header());
 
@@ -119,9 +124,14 @@ impl GroveApp {
         let content_width = self.row_content_width(window);
 
         // Find the name column index and its resolved pixel width for smart truncation.
-        let name_col = self.column_state.columns.iter().position(|c| c.id == "name");
-        let name_budget = name_col
-            .map_or(px(0.), |idx| self.column_state.resolve_column_width(idx, content_width));
+        let name_col = self
+            .column_state
+            .columns
+            .iter()
+            .position(|c| c.id == "name");
+        let name_budget = name_col.map_or(px(0.), |idx| {
+            self.column_state.resolve_column_width(idx, content_width)
+        });
 
         range
             .map(|i| {

@@ -1,8 +1,8 @@
 use std::path::PathBuf;
 
 use gpui::{
-    div, rgb, rems, AnyElement, Context, ElementId, InteractiveElement, IntoElement, ParentElement,
-    SharedString, StatefulInteractiveElement, Styled,
+    AnyElement, Context, ElementId, InteractiveElement, IntoElement, ParentElement, SharedString,
+    StatefulInteractiveElement, Styled, div, rems, rgb,
 };
 
 use crate::app::GroveApp;

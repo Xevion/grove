@@ -89,16 +89,12 @@ impl IconName {
             "md" | "mdx" => Self::FileMarkdown,
             "json" | "jsonc" | "json5" => Self::Json,
             "doc" | "docx" | "pdf" | "odt" | "rtf" | "txt" => Self::FileDoc,
-            "png" | "jpg" | "jpeg" | "gif" | "svg" | "webp" | "bmp" | "ico" | "avif" => {
-                Self::Image
-            }
+            "png" | "jpg" | "jpeg" | "gif" | "svg" | "webp" | "bmp" | "ico" | "avif" => Self::Image,
             "zip" | "tar" | "gz" | "bz2" | "xz" | "7z" | "rar" | "zst" => Self::Archive,
             "sh" | "bash" | "zsh" | "fish" => Self::Terminal,
             "js" | "jsx" | "ts" | "tsx" | "py" | "rb" | "go" | "java" | "kt" | "c" | "cpp"
-            | "h" | "hpp" | "cs" | "swift" | "zig" | "lua" | "ex" | "exs" | "hs" | "ml"
-            | "css" | "scss" | "sass" | "less" | "html" | "htm" | "xml" | "yaml" | "yml" => {
-                Self::FileCode
-            }
+            | "h" | "hpp" | "cs" | "swift" | "zig" | "lua" | "ex" | "exs" | "hs" | "ml" | "css"
+            | "scss" | "sass" | "less" | "html" | "htm" | "xml" | "yaml" | "yml" => Self::FileCode,
             "lnk" | "symlink" => Self::Link,
             _ => Self::File,
         }
@@ -139,10 +135,7 @@ impl gpui::IntoElement for Icon {
     type Element = <gpui::Svg as gpui::IntoElement>::Element;
 
     fn into_element(self) -> Self::Element {
-        let mut el = svg()
-            .path(self.name.path())
-            .size(self.size)
-            .flex_none();
+        let mut el = svg().path(self.name.path()).size(self.size).flex_none();
         if let Some(color) = self.color {
             el = el.text_color(color);
         }

@@ -1,17 +1,17 @@
 use std::path::PathBuf;
 
 use gpui::{
-    actions, div, px, rgb, App, AppContext, Context, DragMoveEvent, FocusHandle,
-    InteractiveElement, IntoElement, KeyBinding, ParentElement, Pixels, Render, ScrollStrategy,
-    StatefulInteractiveElement, Styled, UniformListScrollHandle, Window,
+    App, AppContext, Context, DragMoveEvent, FocusHandle, InteractiveElement, IntoElement,
+    KeyBinding, ParentElement, Pixels, Render, ScrollStrategy, StatefulInteractiveElement, Styled,
+    UniformListScrollHandle, Window, actions, div, px, rgb,
 };
 
+#[cfg(not(target_family = "wasm"))]
+use gpui::Task;
 #[cfg(not(target_family = "wasm"))]
 use std::sync::Arc;
 #[cfg(not(target_family = "wasm"))]
 use std::sync::atomic::AtomicBool;
-#[cfg(not(target_family = "wasm"))]
-use gpui::Task;
 use tracing::debug;
 
 use crate::fs::FileEntry;
@@ -21,15 +21,15 @@ use crate::ui::column_table::{ColumnDef, ColumnTableState, ColumnWidth, EmptyDra
 use crate::ui::status_bar::{TextMeasureCache, TruncationKey};
 
 #[cfg(not(target_family = "wasm"))]
-use std::sync::atomic::Ordering;
+use crate::fs::{Elapsed, merge_sorted, read_directory_bg};
 #[cfg(not(target_family = "wasm"))]
 use futures::StreamExt;
 #[cfg(not(target_family = "wasm"))]
 use futures::channel::mpsc;
 #[cfg(not(target_family = "wasm"))]
-use tracing::{info, instrument};
+use std::sync::atomic::Ordering;
 #[cfg(not(target_family = "wasm"))]
-use crate::fs::{Elapsed, merge_sorted, read_directory_bg};
+use tracing::{info, instrument};
 
 /// Marker type for sidebar resize drags.
 struct SidebarResize;
@@ -306,12 +306,7 @@ impl GroveApp {
         cx.notify();
     }
 
-    pub fn navigate_to(
-        &mut self,
-        path: PathBuf,
-        window: &Window,
-        cx: &mut Context<Self>,
-    ) {
+    pub fn navigate_to(&mut self, path: PathBuf, window: &Window, cx: &mut Context<Self>) {
         debug!(path = %path.display(), "navigate_to");
         self.start_loading(path, window, cx);
     }
@@ -438,8 +433,7 @@ impl Render for GroveApp {
                     .on_drag_move::<SidebarResize>(cx.listener(
                         |this, event: &DragMoveEvent<SidebarResize>, _window, cx| {
                             let x = event.event.position.x;
-                            this.sidebar_width =
-                                x.clamp(SIDEBAR_MIN_WIDTH, SIDEBAR_MAX_WIDTH);
+                            this.sidebar_width = x.clamp(SIDEBAR_MIN_WIDTH, SIDEBAR_MAX_WIDTH);
                             cx.notify();
                         },
                     )),

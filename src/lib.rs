@@ -19,15 +19,21 @@ use assets::Assets;
 /// Show the HTML error overlay when WebGPU/window init fails.
 #[cfg(target_family = "wasm")]
 fn show_wasm_error(msg: &str) {
-    let Some(window) = web_sys::window() else { return };
-    let Some(document) = window.document() else { return };
+    let Some(window) = web_sys::window() else {
+        return;
+    };
+    let Some(document) = window.document() else {
+        return;
+    };
 
     if let Some(loading) = document.get_element_by_id("loading") {
-        let _ = loading.dyn_ref::<web_sys::HtmlElement>()
+        let _ = loading
+            .dyn_ref::<web_sys::HtmlElement>()
             .map(|el| el.style().set_property("display", "none"));
     }
     if let Some(error_div) = document.get_element_by_id("error") {
-        let _ = error_div.dyn_ref::<web_sys::HtmlElement>()
+        let _ = error_div
+            .dyn_ref::<web_sys::HtmlElement>()
             .map(|el| el.style().set_property("display", "flex"));
     }
     if let Some(error_msg) = document.get_element_by_id("error-message") {
@@ -40,8 +46,7 @@ fn show_wasm_error(msg: &str) {
 pub fn run() -> Result<(), JsValue> {
     gpui_platform::web_init();
 
-    let app = gpui_platform::single_threaded_web()
-        .with_assets(Assets);
+    let app = gpui_platform::single_threaded_web().with_assets(Assets);
 
     // In WASM, Application::run() returns immediately (async event loop).
     // The platform callback's Rc<AppCell> clone is a one-shot FnOnce that
