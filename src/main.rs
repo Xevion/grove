@@ -11,8 +11,8 @@ use tracing_subscriber::EnvFilter;
 use app::GroveApp;
 
 fn init_tracing() {
-    let filter = EnvFilter::try_from_default_env()
-        .unwrap_or_else(|_| EnvFilter::new("warn,grove=debug"));
+    let filter =
+        EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("warn,grove=debug"));
 
     tracing_subscriber::fmt()
         .with_env_filter(filter)
@@ -26,6 +26,8 @@ fn main() {
     init_tracing();
 
     Application::new().run(|cx: &mut App| {
+        app::register_keybindings(cx);
+
         let options = WindowOptions {
             window_bounds: Some(WindowBounds::Windowed(Bounds::centered(
                 None,

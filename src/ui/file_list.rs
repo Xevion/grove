@@ -119,7 +119,11 @@ impl GroveApp {
                             .flex_1()
                             .min_w_0()
                             .truncate()
-                            .text_color(if is_dir { rgb(ACCENT) } else { rgb(TEXT_PRIMARY) })
+                            .text_color(if is_dir {
+                                rgb(ACCENT)
+                            } else {
+                                rgb(TEXT_PRIMARY)
+                            })
                             .child(name),
                     )
                     .child(
@@ -130,9 +134,13 @@ impl GroveApp {
                             .text_right()
                             .child(size_display),
                     )
-                    .on_click(cx.listener(move |this, _event, window, cx| {
-                        if is_dir {
-                            this.navigate_to(path.clone(), window, cx);
+                    .on_click(cx.listener(move |this, event: &ClickEvent, window, cx| {
+                        if event.click_count() >= 2 || is_dir {
+                            if is_dir {
+                                this.navigate_to(path.clone(), window, cx);
+                            } else {
+                                let _ = open::that_detached(&path);
+                            }
                         } else {
                             this.selected_index = Some(i);
                         }
