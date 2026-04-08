@@ -138,8 +138,7 @@ impl GroveApp {
                     .hover(|s| s.bg(rgb(BG_HOVER)))
                     .child(Icon::new(IconName::Refresh).color(rgb(TEXT_MUTED).into()))
                     .on_click(cx.listener(|this, _event, window, cx| {
-                        let path = this.current_dir.clone();
-                        this.navigate_to(path, window, cx);
+                        this.refresh_current(window, cx);
                     })),
             )
             .into_any_element()

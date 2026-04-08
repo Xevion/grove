@@ -272,6 +272,80 @@ impl GroveApp {
             self.start_loading(parent, window, cx);
         }
     }
+
+    /// Re-reads the current directory without clearing the view.
+    ///
+    /// The existing file list stays visible while the background read runs.
+    /// On completion, entries are swapped in and the selection is preserved
+    /// by matching the previously-selected entry's path.
+    pub(crate) fn refresh_current(&mut self, window: &Window, cx: &mut Context<Self>) {
+        let path = self.current_dir.clone();
+        let t0 = Instant::now();
+        debug!(path = %path.display(), "refresh_current");
+
+        // Cancel any in-flight load (navigation or previous refresh)
+        if let Some(cancel) = self.loading_cancel.take() {
+            cancel.store(true, Ordering::Relaxed);
+        }
+
+        // Remember selected path for re-selection after refresh
+        let selected_path = self.selected_index.and_then(|vi| {
+            self.visible_entries
+                .get(vi)
+                .map(|&ei| self.entries[ei].path.clone())
+        });
+
+        self.is_loading = true;
+
+        let (tx, mut rx) = mpsc::channel::<Vec<FileEntry>>(8);
+        let cancel = Arc::new(AtomicBool::new(false));
+        self.loading_cancel = Some(Arc::clone(&cancel));
+
+        cx.background_spawn(async move {
+            read_directory_bg(path, tx, cancel).await;
+        })
+        .detach();
+
+        let task = cx.spawn_in(window, async move |weak, cx| {
+            let t_recv_start = Instant::now();
+            let mut new_entries = Vec::new();
+            let mut batch_count = 0u32;
+
+            while let Some(batch) = rx.next().await {
+                batch_count += 1;
+                merge_sorted(&mut new_entries, batch);
+            }
+
+            let t_recv = t_recv_start.elapsed();
+            let _ = weak.update_in(cx, |this, _window, cx| {
+                let t_total = t0.elapsed();
+                debug!(
+                    count = new_entries.len(),
+                    batches = batch_count,
+                    recv = %Elapsed(t_recv),
+                    total = %Elapsed(t_total),
+                    "refresh complete"
+                );
+
+                this.entries = new_entries;
+                this.rebuild_visible();
+
+                // Restore selection by path
+                if let Some(ref sel_path) = selected_path {
+                    this.selected_index = this
+                        .visible_entries
+                        .iter()
+                        .position(|&ei| this.entries[ei].path == *sel_path);
+                }
+
+                this.is_loading = false;
+                cx.notify();
+            });
+        });
+
+        self.loading_task = Some(task);
+        cx.notify();
+    }
 }
 
 impl Render for GroveApp {
