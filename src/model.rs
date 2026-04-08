@@ -20,7 +20,11 @@ pub fn default_bookmarks() -> Vec<Bookmark> {
     .into_iter()
     .map(|(label, path)| {
         let exists = path.exists();
-        Bookmark { label, path, exists }
+        Bookmark {
+            label,
+            path,
+            exists,
+        }
     })
     .collect()
 }

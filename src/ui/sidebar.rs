@@ -41,15 +41,18 @@ impl GroveApp {
                 .rounded_md()
                 .cursor_pointer()
                 .text_sm()
-                .text_color(if exists { rgb(TEXT_PRIMARY) } else { rgb(TEXT_MUTED) })
+                .text_color(if exists {
+                    rgb(TEXT_PRIMARY)
+                } else {
+                    rgb(TEXT_MUTED)
+                })
                 .hover(|s| s.bg(rgb(BG_HOVER)))
                 .child(label);
 
             if exists {
-                bookmark_el =
-                    bookmark_el.on_click(cx.listener(move |this, _event, window, cx| {
-                        this.navigate_to(path.clone(), window, cx);
-                    }));
+                bookmark_el = bookmark_el.on_click(cx.listener(move |this, _event, window, cx| {
+                    this.navigate_to(path.clone(), window, cx);
+                }));
             }
 
             sidebar = sidebar.child(bookmark_el);

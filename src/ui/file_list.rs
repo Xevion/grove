@@ -7,7 +7,7 @@ use crate::theme::*;
 
 impl GroveApp {
     pub(crate) fn render_file_list(&mut self, cx: &mut Context<Self>) -> AnyElement {
-        let entry_count = self.entries.len();
+        let entry_count = self.visible_entries.len();
 
         if entry_count == 0 && !self.is_loading {
             return div()
@@ -23,6 +23,9 @@ impl GroveApp {
         }
 
         let mut container = div().flex().flex_col().flex_1().min_h_0();
+
+        // Sticky column header — sits above the scrollable list
+        container = container.child(self.render_column_header());
 
         if self.is_loading {
             container = container.child(
@@ -54,6 +57,29 @@ impl GroveApp {
             .into_any_element()
     }
 
+    fn render_column_header(&self) -> impl IntoElement {
+        // Mirrors the exact padding/gap/widths used in render_entry_range
+        div()
+            .flex()
+            .flex_row()
+            .items_center()
+            .gap_2()
+            .px_3()
+            .py_1()
+            .mx_1()
+            .border_b_1()
+            .border_color(rgb(BORDER_COLOR))
+            .text_xs()
+            .font_weight(FontWeight::BOLD)
+            .text_color(rgb(TEXT_MUTED))
+            // Icon column spacer
+            .child(div().w(px(20.)))
+            // Name column
+            .child(div().flex_1().child("Name"))
+            // Size column
+            .child(div().w(px(80.)).text_right().child("Size"))
+    }
+
     pub(crate) fn render_entry_range(
         &mut self,
         range: Range<usize>,
@@ -61,7 +87,7 @@ impl GroveApp {
     ) -> Vec<AnyElement> {
         range
             .map(|i| {
-                let entry = &self.entries[i];
+                let entry = &self.entries[self.visible_entries[i]];
                 let path = entry.path.clone();
                 let is_dir = entry.is_dir;
                 let is_selected = self.selected_index == Some(i);
@@ -87,17 +113,19 @@ impl GroveApp {
                     row = row.bg(rgb(BG_SURFACE));
                 }
 
-                row.child(div().w(px(20.)).text_center().child(icon))
+                row.child(div().w(px(20.)).flex_none().text_center().child(icon))
                     .child(
                         div()
                             .flex_1()
-                            .overflow_x_hidden()
+                            .min_w_0()
+                            .truncate()
                             .text_color(if is_dir { rgb(ACCENT) } else { rgb(TEXT_PRIMARY) })
                             .child(name),
                     )
                     .child(
                         div()
                             .w(px(80.))
+                            .flex_none()
                             .text_color(rgb(TEXT_MUTED))
                             .text_right()
                             .child(size_display),

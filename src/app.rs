@@ -14,25 +14,106 @@ use crate::theme::*;
 pub struct GroveApp {
     pub(crate) current_dir: PathBuf,
     pub(crate) entries: Vec<FileEntry>,
+    pub(crate) visible_entries: Vec<usize>,
     pub(crate) bookmarks: Vec<Bookmark>,
     pub(crate) selected_index: Option<usize>,
     pub(crate) is_loading: bool,
+    pub(crate) show_hidden: bool,
     pub(crate) scroll_handle: UniformListScrollHandle,
+    pub(crate) focus_handle: FocusHandle,
     loading_task: Option<Task<()>>,
     needs_initial_load: bool,
 }
 
 impl GroveApp {
-    pub fn new() -> Self {
+    pub fn new(cx: &mut Context<Self>) -> Self {
         Self {
             current_dir: env::current_dir().unwrap_or_else(|_| PathBuf::from("/")),
             entries: Vec::new(),
+            visible_entries: vec![],
             bookmarks: default_bookmarks(),
             selected_index: None,
             loading_task: None,
             is_loading: true,
+            show_hidden: false,
             needs_initial_load: true,
             scroll_handle: UniformListScrollHandle::default(),
+            focus_handle: cx.focus_handle(),
+        }
+    }
+
+    pub(crate) fn rebuild_visible(&mut self) {
+        self.visible_entries = self.entries.iter()
+            .enumerate()
+            .filter(|(_, e)| self.show_hidden || !e.name.starts_with('.'))
+            .map(|(i, _)| i)
+            .collect();
+        if let Some(i) = self.selected_index
+            && i >= self.visible_entries.len()
+        {
+            self.selected_index = self.visible_entries.len().checked_sub(1);
+        }
+    }
+
+    fn select_offset(&mut self, delta: isize) {
+        let count = self.visible_entries.len();
+        if count == 0 {
+            return;
+        }
+        let next = match self.selected_index {
+            None => {
+                if delta >= 0 { 0 } else { count - 1 }
+            }
+            Some(i) => {
+                let next = i as isize + delta;
+                next.clamp(0, count as isize - 1) as usize
+            }
+        };
+        self.selected_index = Some(next);
+        self.scroll_handle.scroll_to_item(next, ScrollStrategy::Center);
+    }
+
+    fn open_selected(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let Some(vi) = self.selected_index else { return };
+        let Some(&ei) = self.visible_entries.get(vi) else { return };
+        let entry = &self.entries[ei];
+        let path = entry.path.clone();
+        if entry.is_dir {
+            self.navigate_to(path, window, cx);
+        } else {
+            let _ = open::that_detached(&path);
+        }
+    }
+
+    fn handle_key_down(&mut self, event: &KeyDownEvent, window: &mut Window, cx: &mut Context<Self>) {
+        let key = event.keystroke.key.as_str();
+        let ctrl = event.keystroke.modifiers.control;
+
+        match (key, ctrl) {
+            ("down", false) | ("j", false) => {
+                self.select_offset(1);
+                cx.notify();
+            }
+            ("up", false) | ("k", false) => {
+                self.select_offset(-1);
+                cx.notify();
+            }
+            ("enter", false) => {
+                self.open_selected(window, cx);
+            }
+            ("backspace", false) => {
+                self.navigate_up(window, cx);
+            }
+            ("h", true) | (".", false) => {
+                self.show_hidden = !self.show_hidden;
+                self.rebuild_visible();
+                cx.notify();
+            }
+            ("escape", false) => {
+                self.selected_index = None;
+                cx.notify();
+            }
+            _ => {}
         }
     }
 
@@ -63,6 +144,7 @@ impl GroveApp {
                     let ok = weak
                         .update_in(cx, |this, _window, cx| {
                             this.entries = snapshot;
+                            this.rebuild_visible();
                             this.scroll_handle.scroll_to_item(0, ScrollStrategy::Top);
                             cx.notify();
                         })
@@ -89,6 +171,7 @@ impl GroveApp {
                     "directory load complete"
                 );
                 this.entries = collected;
+                this.rebuild_visible();
                 this.scroll_handle.scroll_to_item(0, ScrollStrategy::Top);
                 this.is_loading = false;
                 cx.notify();
@@ -100,13 +183,8 @@ impl GroveApp {
     }
 
     pub(crate) fn navigate_to(&mut self, path: PathBuf, window: &mut Window, cx: &mut Context<Self>) {
-        let t0 = Instant::now();
-        let is_dir = path.is_dir();
-        let t_stat = t0.elapsed();
-        debug!(path = %path.display(), is_dir, stat = %Elapsed(t_stat), "navigate_to");
-        if is_dir {
-            self.start_loading(path, window, cx);
-        }
+        debug!(path = %path.display(), "navigate_to");
+        self.start_loading(path, window, cx);
     }
 
     pub(crate) fn navigate_up(&mut self, window: &mut Window, cx: &mut Context<Self>) {
@@ -121,11 +199,14 @@ impl Render for GroveApp {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         if self.needs_initial_load {
             self.needs_initial_load = false;
+            window.focus(&self.focus_handle);
             let cwd = self.current_dir.clone();
             self.start_loading(cwd, window, cx);
         }
 
         div()
+            .track_focus(&self.focus_handle)
+            .on_key_down(cx.listener(Self::handle_key_down))
             .flex()
             .flex_col()
             .bg(rgb(BG_BASE))
@@ -142,5 +223,6 @@ impl Render for GroveApp {
                     .child(self.render_sidebar(cx))
                     .child(self.render_file_list(cx)),
             )
+            .child(self.render_status_bar(window, cx))
     }
 }

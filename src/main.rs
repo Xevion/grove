@@ -39,7 +39,7 @@ fn main() {
             ..Default::default()
         };
 
-        cx.open_window(options, |_window, cx| cx.new(|_| GroveApp::new()))
+        cx.open_window(options, |_window, cx| cx.new(GroveApp::new))
             .unwrap();
 
         cx.activate(true);
