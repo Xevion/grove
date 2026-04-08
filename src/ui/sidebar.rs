@@ -1,9 +1,10 @@
 use gpui::{
-    div, rgb, Context, FontWeight, InteractiveElement, IntoElement, ParentElement,
-    SharedString, StatefulInteractiveElement, Styled,
+    div, rgb, Context, FontWeight, InteractiveElement, IntoElement, ParentElement, SharedString,
+    StatefulInteractiveElement, Styled,
 };
 
 use crate::app::GroveApp;
+use crate::icons::Icon;
 use crate::theme::{BG_HOVER, BORDER_COLOR, SIDEBAR_BG, TEXT_MUTED, TEXT_PRIMARY};
 
 impl GroveApp {
@@ -31,7 +32,6 @@ impl GroveApp {
             let path = bookmark.path.clone();
             let exists = bookmark.exists;
             let label = bookmark.label;
-
             let mut bookmark_el = div()
                 .id(SharedString::from(format!("bm-{label}")))
                 .flex()
@@ -50,6 +50,7 @@ impl GroveApp {
                     rgb(TEXT_MUTED)
                 })
                 .hover(|s| s.bg(rgb(BG_HOVER)))
+                .child(Icon::new(bookmark.icon).color(rgb(TEXT_MUTED).into()))
                 .child(label);
 
             if exists {

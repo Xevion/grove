@@ -47,8 +47,14 @@ impl FileEntry {
         }
     }
 
-    pub const fn icon(&self) -> &'static str {
-        if self.is_dir { "📁" } else { "📄" }
+    pub fn icon(&self) -> crate::icons::Icon {
+        use crate::icons::{Icon, IconName};
+        let name = if self.is_dir {
+            IconName::Folder
+        } else {
+            IconName::for_filename(self.name.as_ref())
+        };
+        Icon::new(name)
     }
 }
 

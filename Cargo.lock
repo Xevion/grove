@@ -2321,6 +2321,7 @@ checksum = "12101ecc8225ea6d675bc70263074eab6169079621c2186fe0c66590b2df9681"
 name = "grove"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "dirs 6.0.0",
  "futures",
  "gpui",
@@ -2328,6 +2329,7 @@ dependencies = [
  "lru",
  "open",
  "rayon",
+ "rust-embed",
  "tracing",
  "tracing-subscriber",
 ]

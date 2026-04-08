@@ -1,12 +1,13 @@
 use std::ops::Range;
 
 use gpui::{
-    div, px, rgb, uniform_list, AnyElement, ClickEvent, Context, DragMoveEvent, ElementId,
+    div, px, rems, rgb, uniform_list, AnyElement, ClickEvent, Context, DragMoveEvent, ElementId,
     InteractiveElement, IntoElement, MouseUpEvent, ParentElement, StatefulInteractiveElement,
     Styled, Window,
 };
 
 use crate::app::GroveApp;
+use crate::icons::{Icon, IconName};
 use crate::theme::{ACCENT, BG_HOVER, BG_SELECTED, BG_SELECTED_HOVER, TEXT_MUTED, TEXT_PRIMARY};
 use crate::ui::column_table::{ColumnResize, FILE_LIST_FONT_PX, HANDLE_WIDTH};
 use crate::ui::status_bar::smart_truncate_px;
@@ -31,11 +32,13 @@ impl GroveApp {
             return div()
                 .flex_1()
                 .flex()
+                .flex_col()
                 .justify_center()
                 .items_center()
+                .gap_2()
                 .py_8()
                 .text_color(rgb(TEXT_MUTED))
-                .text_sm()
+                .child(Icon::new(IconName::FolderOpen).size(rems(2.0)).color(rgb(TEXT_MUTED).into()))
                 .child("Empty directory")
                 .into_any_element();
         }
@@ -158,7 +161,15 @@ impl GroveApp {
                 let col_count = self.column_state.columns.len();
                 for (col_idx, col) in self.column_state.columns.iter().enumerate() {
                     let cell = match col.id {
-                        "icon" => div().text_center().child(entry.icon()),
+                        "icon" => div()
+                            .flex()
+                            .items_center()
+                            .justify_center()
+                            .child(entry.icon().color(rgb(if is_dir {
+                                ACCENT
+                            } else {
+                                TEXT_MUTED
+                            }).into())),
                         "name" => div()
                             .min_w_0()
                             .text_color(if is_dir {

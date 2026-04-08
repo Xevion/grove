@@ -1,5 +1,7 @@
 mod app;
+mod assets;
 mod fs;
+mod icons;
 mod model;
 mod theme;
 pub(crate) mod ui;
@@ -11,6 +13,7 @@ use tracing::info;
 use tracing_subscriber::EnvFilter;
 
 use app::GroveApp;
+use assets::Assets;
 
 fn init_tracing() {
     let filter =
@@ -27,7 +30,7 @@ fn init_tracing() {
 fn main() {
     init_tracing();
 
-    Application::new().run(|cx: &mut App| {
+    Application::new().with_assets(Assets).run(|cx: &mut App| {
         app::register_keybindings(cx);
 
         let options = WindowOptions {
