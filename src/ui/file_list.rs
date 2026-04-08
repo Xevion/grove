@@ -203,7 +203,11 @@ impl GroveApp {
                         if is_dir {
                             this.navigate_to(path.clone(), window, cx);
                         } else {
-                            let _ = open::that_detached(&path);
+                            #[cfg(not(target_family = "wasm"))]
+                            if let Err(e) = open::that_detached(&path) {
+                                // TODO: surface this as a toast/dialog in the UI
+                                tracing::warn!(path = %path.display(), error = %e, "failed to open file");
+                            }
                         }
                     } else {
                         this.selected_index = Some(i);

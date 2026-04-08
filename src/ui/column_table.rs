@@ -53,6 +53,7 @@ pub struct ColumnTableState {
 }
 
 impl ColumnTableState {
+    #[must_use]
     pub const fn new(columns: Vec<ColumnDef>) -> Self {
         Self {
             columns,
@@ -81,6 +82,7 @@ impl ColumnTableState {
 
     /// Resolves the pixel width of a column given the total content width
     /// available for all columns (i.e., row content area minus padding/margins).
+    #[must_use]
     pub fn resolve_column_width(&self, index: usize, content_width: Pixels) -> Pixels {
         let col = &self.columns[index];
         match col.width {
@@ -100,6 +102,7 @@ impl ColumnTableState {
 
     /// Applies the correct width styling to a div based on a column's width config.
     /// Fixed columns get a fixed pixel width; flex columns get `flex_grow` with their ratio.
+    #[must_use]
     pub fn style_cell(&self, index: usize, cell: Div) -> Div {
         let col = &self.columns[index];
         let cell = cell.overflow_hidden().whitespace_nowrap();
@@ -117,6 +120,7 @@ impl ColumnTableState {
     }
 
     /// Renders the column header row with drag handles between columns.
+    #[must_use]
     pub fn render_header(&self) -> AnyElement {
         let mut header = div()
             .w_full()
@@ -219,10 +223,10 @@ impl ColumnTableState {
         if let ColumnWidth::Fixed(w) = &mut self.columns[index].width {
             *w += clamped;
         }
-        if index + 1 < len {
-            if let ColumnWidth::Fixed(w) = &mut self.columns[index + 1].width {
-                *w -= clamped;
-            }
+        if index + 1 < len
+            && let ColumnWidth::Fixed(w) = &mut self.columns[index + 1].width
+        {
+            *w -= clamped;
         }
 
         clamped

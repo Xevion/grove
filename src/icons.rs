@@ -33,7 +33,8 @@ pub enum IconName {
 }
 
 impl IconName {
-    pub fn path(self) -> &'static str {
+    #[must_use]
+    pub const fn path(self) -> &'static str {
         match self {
             Self::Archive => "icons/archive.svg",
             Self::ArrowUp => "icons/arrow_up.svg",
@@ -66,6 +67,7 @@ impl IconName {
     }
 
     /// Returns an icon appropriate for a file based on its filename.
+    #[must_use]
     pub fn for_filename(filename: &str) -> Self {
         // Check full filename first for dotfiles and special names
         match filename {
@@ -111,7 +113,8 @@ pub struct Icon {
 
 #[allow(dead_code)]
 impl Icon {
-    pub fn new(name: IconName) -> Self {
+    #[must_use]
+    pub const fn new(name: IconName) -> Self {
         Self {
             name,
             size: rems(1.0),
@@ -119,11 +122,13 @@ impl Icon {
         }
     }
 
+    #[must_use]
     pub const fn size(mut self, size: Rems) -> Self {
         self.size = size;
         self
     }
 
+    #[must_use]
     pub const fn color(mut self, color: Hsla) -> Self {
         self.color = Some(color);
         self

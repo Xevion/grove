@@ -10,6 +10,8 @@ pub struct Bookmark {
     pub exists: bool,
 }
 
+#[cfg(not(target_family = "wasm"))]
+#[must_use]
 pub fn default_bookmarks() -> Vec<Bookmark> {
     let home = dirs::home_dir().unwrap_or_else(|| PathBuf::from("/"));
     [
@@ -31,4 +33,15 @@ pub fn default_bookmarks() -> Vec<Bookmark> {
         }
     })
     .collect()
+}
+
+#[cfg(target_family = "wasm")]
+pub fn default_bookmarks() -> Vec<Bookmark> {
+    vec![
+        Bookmark { label: "Home", path: PathBuf::new(), icon: IconName::Home, exists: true },
+        Bookmark { label: "Desktop", path: PathBuf::from("Desktop"), icon: IconName::Screen, exists: true },
+        Bookmark { label: "Documents", path: PathBuf::from("Documents"), icon: IconName::FileDoc, exists: true },
+        Bookmark { label: "Downloads", path: PathBuf::from("Downloads"), icon: IconName::Download, exists: true },
+        Bookmark { label: "Projects", path: PathBuf::from("projects"), icon: IconName::Code, exists: true },
+    ]
 }

@@ -27,7 +27,15 @@ pub struct TextMeasureCache {
     inner: LruCache<(String, u32), Pixels>,
 }
 
+impl Default for TextMeasureCache {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl TextMeasureCache {
+    #[allow(clippy::missing_panics_doc)]
+    #[must_use]
     pub fn new() -> Self {
         Self {
             inner: LruCache::new(NonZeroUsize::new(MEASURE_CACHE_CAP).unwrap()),

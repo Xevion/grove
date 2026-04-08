@@ -1,23 +1,35 @@
-use std::env;
 use std::path::PathBuf;
-use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::time::Instant;
 
-use futures::StreamExt;
-use futures::channel::mpsc;
 use gpui::{
     actions, div, px, rgb, App, AppContext, Context, DragMoveEvent, FocusHandle,
     InteractiveElement, IntoElement, KeyBinding, ParentElement, Pixels, Render, ScrollStrategy,
-    StatefulInteractiveElement, Styled, Task, UniformListScrollHandle, Window,
+    StatefulInteractiveElement, Styled, UniformListScrollHandle, Window,
 };
-use tracing::{debug, info, instrument};
 
-use crate::fs::{Elapsed, FileEntry, merge_sorted, read_directory_bg};
+#[cfg(not(target_family = "wasm"))]
+use std::sync::Arc;
+#[cfg(not(target_family = "wasm"))]
+use std::sync::atomic::AtomicBool;
+#[cfg(not(target_family = "wasm"))]
+use gpui::Task;
+use tracing::debug;
+
+use crate::fs::FileEntry;
 use crate::model::{Bookmark, default_bookmarks};
 use crate::theme::{BG_BASE, BORDER_COLOR, TEXT_PRIMARY};
 use crate::ui::column_table::{ColumnDef, ColumnTableState, ColumnWidth, EmptyDrag};
 use crate::ui::status_bar::{TextMeasureCache, TruncationKey};
+
+#[cfg(not(target_family = "wasm"))]
+use std::sync::atomic::Ordering;
+#[cfg(not(target_family = "wasm"))]
+use futures::StreamExt;
+#[cfg(not(target_family = "wasm"))]
+use futures::channel::mpsc;
+#[cfg(not(target_family = "wasm"))]
+use tracing::{info, instrument};
+#[cfg(not(target_family = "wasm"))]
+use crate::fs::{Elapsed, merge_sorted, read_directory_bg};
 
 /// Marker type for sidebar resize drags.
 struct SidebarResize;
@@ -53,34 +65,43 @@ pub const SIDEBAR_MIN_WIDTH: Pixels = px(120.);
 pub const SIDEBAR_MAX_WIDTH: Pixels = px(400.);
 
 pub struct GroveApp {
-    pub(crate) current_dir: PathBuf,
-    pub(crate) entries: Vec<FileEntry>,
-    pub(crate) visible_entries: Vec<usize>,
-    pub(crate) bookmarks: Vec<Bookmark>,
-    pub(crate) selected_index: Option<usize>,
-    pub(crate) is_loading: bool,
-    pub(crate) show_hidden: bool,
-    pub(crate) scroll_handle: UniformListScrollHandle,
-    pub(crate) focus_handle: FocusHandle,
+    pub current_dir: PathBuf,
+    pub entries: Vec<FileEntry>,
+    pub visible_entries: Vec<usize>,
+    pub bookmarks: Vec<Bookmark>,
+    pub selected_index: Option<usize>,
+    pub is_loading: bool,
+    pub show_hidden: bool,
+    pub scroll_handle: UniformListScrollHandle,
+    pub focus_handle: FocusHandle,
+    #[cfg(not(target_family = "wasm"))]
     loading_task: Option<Task<()>>,
+    #[cfg(not(target_family = "wasm"))]
     loading_cancel: Option<Arc<AtomicBool>>,
     needs_initial_load: bool,
-    pub(crate) measure_cache: TextMeasureCache,
-    pub(crate) truncation_cache: Option<TruncationKey>,
-    pub(crate) truncation_result: (String, String),
-    pub(crate) column_state: ColumnTableState,
-    pub(crate) sidebar_width: Pixels,
+    pub measure_cache: TextMeasureCache,
+    pub truncation_cache: Option<TruncationKey>,
+    pub truncation_result: (String, String),
+    pub column_state: ColumnTableState,
+    pub sidebar_width: Pixels,
 }
 
 impl GroveApp {
     pub fn new(cx: &mut Context<Self>) -> Self {
+        #[cfg(not(target_family = "wasm"))]
+        let current_dir = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("/"));
+        #[cfg(target_family = "wasm")]
+        let current_dir = PathBuf::new();
+
         Self {
-            current_dir: env::current_dir().unwrap_or_else(|_| PathBuf::from("/")),
+            current_dir,
             entries: Vec::new(),
             visible_entries: vec![],
             bookmarks: default_bookmarks(),
             selected_index: None,
+            #[cfg(not(target_family = "wasm"))]
             loading_task: None,
+            #[cfg(not(target_family = "wasm"))]
             loading_cancel: None,
             is_loading: true,
             show_hidden: false,
@@ -120,7 +141,7 @@ impl GroveApp {
         }
     }
 
-    pub(crate) fn rebuild_visible(&mut self) {
+    pub fn rebuild_visible(&mut self) {
         self.visible_entries = self
             .entries
             .iter()
@@ -174,7 +195,11 @@ impl GroveApp {
         if entry.is_dir {
             self.navigate_to(path, window, cx);
         } else {
-            let _ = open::that_detached(&path);
+            #[cfg(not(target_family = "wasm"))]
+            if let Err(e) = open::that_detached(&path) {
+                // TODO: surface this as a toast/dialog in the UI
+                tracing::warn!(path = %path.display(), error = %e, "failed to open file");
+            }
         }
     }
 
@@ -193,24 +218,21 @@ impl GroveApp {
         cx.notify();
     }
 
-    #[instrument(skip(self, window, cx), fields(path = %path.display()))]
-    fn start_loading(&mut self, path: PathBuf, window: &Window, cx: &mut Context<Self>) {
-        let t0 = Instant::now();
-        info!("loading directory");
-
-        // Signal any in-flight background reader to stop
+    /// Cancels any in-flight load, spawns a background directory read for `path`,
+    /// and returns a channel receiver for the entry batches.
+    #[cfg(not(target_family = "wasm"))]
+    fn spawn_directory_read(
+        &mut self,
+        path: PathBuf,
+        cx: &Context<Self>,
+    ) -> mpsc::Receiver<Vec<FileEntry>> {
         if let Some(cancel) = self.loading_cancel.take() {
             cancel.store(true, Ordering::Relaxed);
         }
 
-        self.current_dir.clone_from(&path);
-        self.selected_index = None;
-        self.entries.clear();
-        self.visible_entries.clear();
         self.is_loading = true;
-        self.scroll_handle.scroll_to_item(0, ScrollStrategy::Top);
 
-        let (tx, mut rx) = mpsc::channel::<Vec<FileEntry>>(8);
+        let (tx, rx) = mpsc::channel::<Vec<FileEntry>>(8);
         let cancel = Arc::new(AtomicBool::new(false));
         self.loading_cancel = Some(Arc::clone(&cancel));
 
@@ -219,8 +241,25 @@ impl GroveApp {
         })
         .detach();
 
+        rx
+    }
+
+    #[cfg(not(target_family = "wasm"))]
+    #[instrument(skip(self, window, cx), fields(path = %path.display()))]
+    fn start_loading(&mut self, path: PathBuf, window: &Window, cx: &mut Context<Self>) {
+        let t0 = std::time::Instant::now();
+        info!("loading directory");
+
+        self.current_dir.clone_from(&path);
+        self.selected_index = None;
+        self.entries.clear();
+        self.visible_entries.clear();
+        self.scroll_handle.scroll_to_item(0, ScrollStrategy::Top);
+
+        let mut rx = self.spawn_directory_read(path, cx);
+
         let task = cx.spawn_in(window, async move |weak, cx| {
-            let t_recv_start = Instant::now();
+            let t_recv_start = std::time::Instant::now();
             let mut batch_count = 0u32;
 
             while let Some(batch) = rx.next().await {
@@ -256,7 +295,18 @@ impl GroveApp {
         cx.notify();
     }
 
-    pub(crate) fn navigate_to(
+    #[cfg(target_family = "wasm")]
+    fn start_loading(&mut self, path: PathBuf, _window: &Window, cx: &mut Context<Self>) {
+        self.current_dir.clone_from(&path);
+        self.selected_index = None;
+        self.entries = crate::fs::mock_entries_for(&path);
+        self.is_loading = false;
+        self.rebuild_visible();
+        self.scroll_handle.scroll_to_item(0, ScrollStrategy::Top);
+        cx.notify();
+    }
+
+    pub fn navigate_to(
         &mut self,
         path: PathBuf,
         window: &Window,
@@ -266,48 +316,29 @@ impl GroveApp {
         self.start_loading(path, window, cx);
     }
 
-    pub(crate) fn navigate_up(&mut self, window: &Window, cx: &mut Context<Self>) {
+    pub fn navigate_up(&mut self, window: &Window, cx: &mut Context<Self>) {
         if let Some(parent) = self.current_dir.parent() {
             let parent = parent.to_path_buf();
             self.start_loading(parent, window, cx);
         }
     }
 
-    /// Re-reads the current directory without clearing the view.
-    ///
-    /// The existing file list stays visible while the background read runs.
-    /// On completion, entries are swapped in and the selection is preserved
-    /// by matching the previously-selected entry's path.
-    pub(crate) fn refresh_current(&mut self, window: &Window, cx: &mut Context<Self>) {
+    #[cfg(not(target_family = "wasm"))]
+    pub fn refresh_current(&mut self, window: &Window, cx: &mut Context<Self>) {
         let path = self.current_dir.clone();
-        let t0 = Instant::now();
+        let t0 = std::time::Instant::now();
         debug!(path = %path.display(), "refresh_current");
 
-        // Cancel any in-flight load (navigation or previous refresh)
-        if let Some(cancel) = self.loading_cancel.take() {
-            cancel.store(true, Ordering::Relaxed);
-        }
-
-        // Remember selected path for re-selection after refresh
         let selected_path = self.selected_index.and_then(|vi| {
             self.visible_entries
                 .get(vi)
                 .map(|&ei| self.entries[ei].path.clone())
         });
 
-        self.is_loading = true;
-
-        let (tx, mut rx) = mpsc::channel::<Vec<FileEntry>>(8);
-        let cancel = Arc::new(AtomicBool::new(false));
-        self.loading_cancel = Some(Arc::clone(&cancel));
-
-        cx.background_spawn(async move {
-            read_directory_bg(path, tx, cancel).await;
-        })
-        .detach();
+        let mut rx = self.spawn_directory_read(path, cx);
 
         let task = cx.spawn_in(window, async move |weak, cx| {
-            let t_recv_start = Instant::now();
+            let t_recv_start = std::time::Instant::now();
             let mut new_entries = Vec::new();
             let mut batch_count = 0u32;
 
@@ -330,7 +361,6 @@ impl GroveApp {
                 this.entries = new_entries;
                 this.rebuild_visible();
 
-                // Restore selection by path
                 if let Some(ref sel_path) = selected_path {
                     this.selected_index = this
                         .visible_entries
@@ -346,10 +376,19 @@ impl GroveApp {
         self.loading_task = Some(task);
         cx.notify();
     }
+
+    #[cfg(target_family = "wasm")]
+    pub fn refresh_current(&mut self, window: &Window, cx: &mut Context<Self>) {
+        let path = self.current_dir.clone();
+        self.start_loading(path, window, cx);
+    }
 }
 
 impl Render for GroveApp {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        // Triggered once on first render. This lives here rather than in the
+        // constructor because start_loading requires a Window reference, which
+        // is only available during render (Entity::update doesn't provide one).
         if self.needs_initial_load {
             self.needs_initial_load = false;
             window.focus(&self.focus_handle, cx);

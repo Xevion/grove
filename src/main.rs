@@ -1,17 +1,9 @@
-mod app;
-mod assets;
-mod fs;
-mod icons;
-mod model;
-mod theme;
-pub(crate) mod ui;
-
 use gpui::{px, size, App, AppContext, Bounds, TitlebarOptions, WindowBounds, WindowOptions};
 use tracing::info;
 use tracing_subscriber::EnvFilter;
 
-use app::GroveApp;
-use assets::Assets;
+use grove::app::{self, GroveApp};
+use grove::assets::Assets;
 
 fn init_tracing() {
     let filter =
@@ -31,24 +23,24 @@ fn main() {
     gpui_platform::application()
         .with_assets(Assets)
         .run(|cx: &mut App| {
-        app::register_keybindings(cx);
+            app::register_keybindings(cx);
 
-        let options = WindowOptions {
-            window_bounds: Some(WindowBounds::Windowed(Bounds::centered(
-                None,
-                size(px(1000.), px(650.)),
-                cx,
-            ))),
-            titlebar: Some(TitlebarOptions {
-                title: Some("Grove".into()),
+            let options = WindowOptions {
+                window_bounds: Some(WindowBounds::Windowed(Bounds::centered(
+                    None,
+                    size(px(1000.), px(650.)),
+                    cx,
+                ))),
+                titlebar: Some(TitlebarOptions {
+                    title: Some("Grove".into()),
+                    ..Default::default()
+                }),
                 ..Default::default()
-            }),
-            ..Default::default()
-        };
+            };
 
-        cx.open_window(options, |_window, cx| cx.new(GroveApp::new))
-            .unwrap();
+            cx.open_window(options, |_window, cx| cx.new(GroveApp::new))
+                .unwrap();
 
-        cx.activate(true);
-    });
+            cx.activate(true);
+        });
 }
