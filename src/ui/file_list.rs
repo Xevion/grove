@@ -45,6 +45,8 @@ impl GroveApp {
             .flex_col()
             .flex_1()
             .min_h_0()
+            .min_w_0()
+            .overflow_hidden()
             .on_drag_move::<ColumnResize>(cx.listener(
                 |this, event: &DragMoveEvent<ColumnResize>, window, cx| {
                     let current_x = event.event.position.x;

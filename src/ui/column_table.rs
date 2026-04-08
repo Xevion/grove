@@ -109,7 +109,7 @@ impl ColumnTableState {
                 cell.w(clamped).max_w(clamped).flex_none()
             }
             ColumnWidth::Flex(ratio) => {
-                let mut styled = cell.flex_basis(px(0.)).min_w(col.min_width);
+                let mut styled = cell.flex_basis(px(0.)).min_w(col.min_width).flex_shrink();
                 styled.style().flex_grow = Some(ratio);
                 styled
             }
