@@ -68,6 +68,16 @@ jobs:
       - name: Check unused dependencies
         run: cargo machete
 
+      - name: Install Rust nightly + WASM target
+        uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # nightly
+        with:
+          toolchain: nightly
+          components: clippy
+          targets: wasm32-unknown-unknown
+
+      - name: Clippy (WASM)
+        run: cargo +nightly clippy --lib --target wasm32-unknown-unknown --locked -- -D warnings
+
   test:
     name: Test
     runs-on: ubuntu-22.04
@@ -210,7 +220,7 @@ jobs:
 
   deploy-wasm:
     name: Deploy WASM Demo
-    needs: [quality, build]
+    needs: [quality, test, security]
     if: github.event_name == 'push'
     runs-on: ubuntu-24.04
     timeout-minutes: 30
@@ -236,7 +246,6 @@ jobs:
         uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # nightly
         with:
           toolchain: nightly
-          components: clippy
           targets: wasm32-unknown-unknown
 
       - uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
@@ -244,7 +253,9 @@ jobs:
           key: wasm
 
       - name: Install wasm-bindgen-cli
-        run: cargo install wasm-bindgen-cli --version 0.2.117
+        uses: taiki-e/install-action@v2
+        with:
+          tool: wasm-bindgen-cli@0.2.117
 
       - name: Install Linux system dependencies
         run: |
@@ -267,9 +278,6 @@ jobs:
             cmake \
             clang \
             lld
-
-      - name: Clippy (WASM)
-        run: cargo clippy --lib --target wasm32-unknown-unknown --locked -- -D warnings
 
       - name: Build WASM (release)
         run: cargo build --lib --target wasm32-unknown-unknown --release
