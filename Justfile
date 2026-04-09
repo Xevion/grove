@@ -15,8 +15,8 @@ check:
     cargo +nightly clippy --lib --target wasm32-unknown-unknown --locked -- -D warnings
     cargo deny -L error check --hide-inclusion-graph advisories bans sources
     cargo machete
-    cargo nextest run --locked --no-tests=pass
+    cargo nextest run --locked --no-tests=fail
 
 # Run tests
 test *ARGS:
-    cargo nextest run --locked --no-tests=pass {{ARGS}}
+    cargo nextest run --locked --no-tests=fail {{ARGS}}

@@ -3,7 +3,7 @@ use std::path::PathBuf;
 
 use gpui::SharedString;
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct FileEntry {
     pub name: SharedString,
     pub path: PathBuf,
@@ -537,3 +537,211 @@ mod mock {
 
 #[cfg(target_family = "wasm")]
 pub use mock::mock_entries_for;
+
+#[cfg(test)]
+mod tests {
+    use assert2::assert;
+    use gpui::SharedString;
+    use proptest::prelude::*;
+    use rstest::rstest;
+
+    use super::*;
+
+    fn entry(name: &str, is_dir: bool) -> FileEntry {
+        FileEntry {
+            name: SharedString::from(name.to_string()),
+            path: name.into(),
+            is_dir,
+            size_display: SharedString::from("0 B"),
+            modified_display: SharedString::from("—"),
+        }
+    }
+
+    #[rstest]
+    #[case("alpha", false, "beta", false, Ordering::Less)]
+    #[case("beta", false, "alpha", false, Ordering::Greater)]
+    #[case("same", false, "same", false, Ordering::Equal)]
+    #[case("dir", true, "file", false, Ordering::Less)]
+    #[case("file", false, "dir", true, Ordering::Greater)]
+    #[case("a_dir", true, "b_dir", true, Ordering::Less)]
+    fn cmp_entries_cases(
+        #[case] a_name: &str,
+        #[case] a_dir: bool,
+        #[case] b_name: &str,
+        #[case] b_dir: bool,
+        #[case] expected: Ordering,
+    ) {
+        let a = entry(a_name, a_dir);
+        let b = entry(b_name, b_dir);
+        assert!(cmp_entries(&a, &b) == expected);
+    }
+
+    #[test]
+    fn cmp_entries_case_insensitive() {
+        let upper = entry("Zebra", false);
+        let lower = entry("zebra", false);
+        assert!(cmp_entries(&upper, &lower) == Ordering::Equal);
+    }
+
+    #[test]
+    fn sort_entries_dirs_first() {
+        let mut entries = vec![
+            entry("zebra.txt", false),
+            entry("alpha", true),
+            entry("apple.rs", false),
+            entry("beta", true),
+        ];
+        sort_entries(&mut entries);
+        let names: Vec<&str> = entries.iter().map(|e| e.name.as_ref()).collect();
+        assert!(names == vec!["alpha", "beta", "apple.rs", "zebra.txt"]);
+    }
+
+    #[test]
+    fn sort_entries_empty() {
+        let mut entries: Vec<FileEntry> = vec![];
+        sort_entries(&mut entries);
+        assert!(entries.is_empty());
+    }
+
+    #[test]
+    fn sort_entries_single() {
+        let mut entries = vec![entry("only", false)];
+        sort_entries(&mut entries);
+        assert!(entries.len() == 1);
+        assert!(entries[0].name.as_ref() == "only");
+    }
+
+    #[test]
+    fn merge_sorted_both_empty() {
+        let mut buf: Vec<FileEntry> = vec![];
+        merge_sorted(&mut buf, vec![]);
+        assert!(buf.is_empty());
+    }
+
+    #[test]
+    fn merge_sorted_into_empty() {
+        let mut buf: Vec<FileEntry> = vec![];
+        let mut batch = vec![entry("c.txt", false), entry("a.txt", false)];
+        sort_entries(&mut batch);
+        merge_sorted(&mut buf, batch);
+        let names: Vec<&str> = buf.iter().map(|e| e.name.as_ref()).collect();
+        assert!(names == vec!["a.txt", "c.txt"]);
+    }
+
+    #[test]
+    fn merge_sorted_empty_batch() {
+        let mut buf = vec![entry("a.txt", false)];
+        merge_sorted(&mut buf, vec![]);
+        assert!(buf.len() == 1);
+    }
+
+    #[test]
+    fn merge_sorted_interleave() {
+        let mut buf = vec![entry("a.txt", false), entry("c.txt", false)];
+        let batch = vec![entry("b.txt", false)];
+        merge_sorted(&mut buf, batch);
+        let names: Vec<&str> = buf.iter().map(|e| e.name.as_ref()).collect();
+        assert!(names == vec!["a.txt", "b.txt", "c.txt"]);
+    }
+
+    #[test]
+    fn merge_sorted_dirs_first_across_merge() {
+        let mut buf = vec![entry("z_dir", true), entry("a.txt", false)];
+        let batch = vec![entry("a_dir", true), entry("m.txt", false)];
+        merge_sorted(&mut buf, batch);
+        let names: Vec<&str> = buf.iter().map(|e| e.name.as_ref()).collect();
+        assert!(names == vec!["a_dir", "z_dir", "a.txt", "m.txt"]);
+    }
+
+    fn arb_file_entry() -> impl Strategy<Value = FileEntry> {
+        ("[a-z]{1,8}", any::<bool>()).prop_map(|(name, is_dir)| entry(&name, is_dir))
+    }
+
+    proptest! {
+        #[test]
+        fn merge_sorted_preserves_sort_invariant(
+            buf_entries in proptest::collection::vec(arb_file_entry(), 0..20),
+            batch_entries in proptest::collection::vec(arb_file_entry(), 0..20),
+        ) {
+            let mut buf = buf_entries;
+            sort_entries(&mut buf);
+            let mut batch = batch_entries;
+            sort_entries(&mut batch);
+            let expected_len = buf.len() + batch.len();
+
+            merge_sorted(&mut buf, batch);
+
+            // Length preserved
+            prop_assert_eq!(buf.len(), expected_len);
+
+            // Result is sorted: dirs before files, then case-insensitive name
+            for pair in buf.windows(2) {
+                prop_assert!(cmp_entries(&pair[0], &pair[1]).is_le());
+            }
+        }
+    }
+
+    #[cfg(not(target_family = "wasm"))]
+    mod native_tests {
+        use assert2::assert;
+        use proptest::prelude::*;
+        use rstest::rstest;
+
+        use super::super::native::format_size;
+
+        #[rstest]
+        #[case(0, "0 B")]
+        #[case(1, "1 B")]
+        #[case(512, "512 B")]
+        #[case(1023, "1023 B")]
+        #[case(1024, "1.0 KB")]
+        #[case(1536, "1.5 KB")]
+        #[case(1_048_576, "1.0 MB")]
+        #[case(1_073_741_824, "1.0 GB")]
+        #[case(1_099_511_627_776, "1.0 TB")]
+        fn format_size_known_values(#[case] size: u64, #[case] expected: &str) {
+            assert!(format_size(size) == expected);
+        }
+
+        #[test]
+        fn format_size_max_u64() {
+            let result = format_size(u64::MAX);
+            // Should not panic and should contain a unit
+            assert!(result.contains(' '));
+        }
+
+        proptest! {
+            #[test]
+            fn format_size_never_panics(size: u64) {
+                let result = format_size(size);
+                // Every result has a space separating value from unit
+                prop_assert!(result.contains(' '));
+            }
+
+            #[test]
+            fn format_size_small_values_are_bytes(size in 0u64..1024) {
+                let result = format_size(size);
+                prop_assert!(result.ends_with(" B"), "Expected bytes unit for {size}, got {result}");
+            }
+        }
+
+        #[cfg(not(target_family = "wasm"))]
+        mod elapsed_tests {
+            use std::time::Duration;
+
+            use assert2::assert;
+            use rstest::rstest;
+
+            use super::super::super::native::Elapsed;
+
+            #[rstest]
+            #[case(Duration::from_nanos(500), "500ns")]
+            #[case(Duration::from_micros(50), "50.0µs")]
+            #[case(Duration::from_millis(5), "5.00ms")]
+            #[case(Duration::from_secs(2), "2.00s")]
+            fn elapsed_display(#[case] duration: Duration, #[case] expected: &str) {
+                assert!(format!("{}", Elapsed(duration)) == expected);
+            }
+        }
+    }
+}

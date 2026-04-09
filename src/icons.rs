@@ -131,6 +131,119 @@ impl Icon {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use assert2::assert;
+    use rstest::rstest;
+
+    use super::*;
+
+    #[rstest]
+    #[case("main.rs", IconName::FileRust)]
+    #[case("Cargo.toml", IconName::FileToml)]
+    #[case("README.md", IconName::FileMarkdown)]
+    #[case("notes.mdx", IconName::FileMarkdown)]
+    #[case("config.json", IconName::Json)]
+    #[case("tsconfig.jsonc", IconName::Json)]
+    #[case("data.json5", IconName::Json)]
+    #[case("report.pdf", IconName::FileDoc)]
+    #[case("essay.txt", IconName::FileDoc)]
+    #[case("photo.png", IconName::Image)]
+    #[case("logo.svg", IconName::Image)]
+    #[case("banner.webp", IconName::Image)]
+    #[case("backup.tar", IconName::Archive)]
+    #[case("release.zip", IconName::Archive)]
+    #[case("data.gz", IconName::Archive)]
+    #[case("init.sh", IconName::Terminal)]
+    #[case("setup.bash", IconName::Terminal)]
+    #[case("config.fish", IconName::Terminal)]
+    #[case("app.tsx", IconName::FileCode)]
+    #[case("main.go", IconName::FileCode)]
+    #[case("style.css", IconName::FileCode)]
+    #[case("index.html", IconName::FileCode)]
+    #[case("shortcut.lnk", IconName::Link)]
+    fn for_filename_extension_mapping(#[case] filename: &str, #[case] expected: IconName) {
+        assert!(IconName::for_filename(filename) == expected);
+    }
+
+    #[rstest]
+    #[case(".gitignore", IconName::FileGit)]
+    #[case(".gitmodules", IconName::FileGit)]
+    #[case(".gitattributes", IconName::FileGit)]
+    #[case(".gitconfig", IconName::FileGit)]
+    fn for_filename_git_dotfiles(#[case] filename: &str, #[case] expected: IconName) {
+        assert!(IconName::for_filename(filename) == expected);
+    }
+
+    #[rstest]
+    #[case("Cargo.lock")]
+    #[case("package-lock.json")]
+    #[case("yarn.lock")]
+    #[case("pnpm-lock.yaml")]
+    #[case("poetry.lock")]
+    #[case("flake.lock")]
+    fn for_filename_lockfiles(#[case] filename: &str) {
+        assert!(IconName::for_filename(filename) == IconName::FileGeneric);
+    }
+
+    #[rstest]
+    #[case("Makefile")]
+    #[case("Dockerfile")]
+    #[case("LICENSE")]
+    fn for_filename_no_extension(#[case] filename: &str) {
+        assert!(IconName::for_filename(filename) == IconName::File);
+    }
+
+    #[test]
+    fn for_filename_unknown_extension() {
+        assert!(IconName::for_filename("data.xyz") == IconName::File);
+    }
+
+    #[test]
+    fn every_icon_has_svg_path() {
+        let icons = [
+            IconName::Archive,
+            IconName::ArrowUp,
+            IconName::ChevronRight,
+            IconName::Code,
+            IconName::Download,
+            IconName::Eye,
+            IconName::EyeOff,
+            IconName::File,
+            IconName::FileCode,
+            IconName::FileDoc,
+            IconName::FileGeneric,
+            IconName::FileGit,
+            IconName::FileMarkdown,
+            IconName::FileRust,
+            IconName::FileToml,
+            IconName::Folder,
+            IconName::FolderOpen,
+            IconName::Home,
+            IconName::Image,
+            IconName::Json,
+            IconName::Link,
+            IconName::Plus,
+            IconName::Refresh,
+            IconName::Screen,
+            IconName::Server,
+            IconName::Terminal,
+            IconName::Warning,
+        ];
+        for icon in icons {
+            let path = icon.path();
+            assert!(
+                path.starts_with("icons/"),
+                "Icon {icon:?} path doesn't start with icons/"
+            );
+            assert!(
+                path.ends_with(".svg"),
+                "Icon {icon:?} path doesn't end with .svg"
+            );
+        }
+    }
+}
+
 impl gpui::IntoElement for Icon {
     type Element = <gpui::Svg as gpui::IntoElement>::Element;
 

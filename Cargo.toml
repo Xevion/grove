@@ -36,6 +36,9 @@ web-sys = { version = "0.3.94", features = ["Document", "Element", "HtmlElement"
 psm = { git = "https://github.com/rust-lang/stacker", branch = "master" }
 
 
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(coverage_nightly)'] }
+
 [lints.clippy]
 all = { level = "warn", priority = -1 }
 pedantic = { level = "warn", priority = -1 }
@@ -43,3 +46,9 @@ nursery = { level = "warn", priority = -1 }
 
 [profile.dev.package."*"]
 opt-level = 2
+
+[dev-dependencies]
+assert2 = "0.4.0"
+proptest = "1.11.0"
+rstest = "0.26.1"
+tempfile = "3.27.0"
