@@ -59,7 +59,7 @@ jobs:
         run: cargo clippy --locked -- -D warnings
 
       - name: Install cargo-machete
-        run: cargo install cargo-machete --locked
+        uses: taiki-e/install-action@cargo-machete
 
       - name: Check unused dependencies
         run: cargo machete
@@ -79,7 +79,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # stable
 
       - name: Install cargo-deny
-        run: cargo install cargo-deny --locked
+        uses: taiki-e/install-action@cargo-deny
 
       - name: Check advisories, bans, and sources
         run: cargo deny -L error check --hide-inclusion-graph advisories bans sources
