@@ -1,5 +1,9 @@
 # Grove — development recipes
 
+# Apply patches to vendored submodules
+patch:
+    cd vendor/gpui-component && git apply ../../patches/*.patch
+
 # Run the application
 run *ARGS:
     cargo run {{ARGS}}

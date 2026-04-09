@@ -1,0 +1,65 @@
+From f511039b05978b3abf18cfc5da967fb078cd7f05 Mon Sep 17 00:00:00 2001
+From: Xevion <xevion@xevion.dev>
+Date: Wed, 8 Apr 2026 16:40:21 -0500
+Subject: [PATCH] fix: widen resize handle hit area and improve visibility
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Hit area: 2px → 8px, line: centered 1px.
+Default color: border (visible against header bg).
+Hover color: foreground (high contrast).
+---
+ crates/ui/src/table/state.rs | 17 +++++++++--------
+ 1 file changed, 9 insertions(+), 8 deletions(-)
+
+diff --git a/crates/ui/src/table/state.rs b/crates/ui/src/table/state.rs
+index c27f64a4..c1a25b9d 100644
+--- a/crates/ui/src/table/state.rs
++++ b/crates/ui/src/table/state.rs
+@@ -1166,7 +1166,8 @@ where
+         _: &mut Window,
+         cx: &mut Context<Self>,
+     ) -> impl IntoElement {
+-        const HANDLE_SIZE: Pixels = px(2.);
++        const HANDLE_HIT_AREA: Pixels = px(8.);
++        const HANDLE_LINE_WIDTH: Pixels = px(1.);
+ 
+         let resizable = self.col_resizable
+             && self.col_groups.get(ix).map(|col| col.is_resizable()).unwrap_or(false);
+@@ -1182,17 +1183,17 @@ where
+             .occlude()
+             .cursor_col_resize()
+             .h_full()
+-            .w(HANDLE_SIZE)
+-            .ml(-(HANDLE_SIZE))
+-            .justify_end()
++            .w(HANDLE_HIT_AREA)
++            .ml(-(HANDLE_HIT_AREA))
++            .justify_center()
+             .items_center()
+             .child(
+                 div()
+                     .h_full()
+                     .justify_center()
+-                    .bg(cx.theme().table_row_border)
+-                    .group_hover(&group_id, |this| this.bg(cx.theme().border).h_full())
+-                    .w(px(1.)),
++                    .bg(cx.theme().border)
++                    .group_hover(&group_id, |this| this.bg(cx.theme().foreground).h_full())
++                    .w(HANDLE_LINE_WIDTH),
+             )
+             .on_drag_move(cx.listener(move |view, e: &DragMoveEvent<ResizeColumn>, window, cx| {
+                 match e.drag(cx) {
+@@ -1215,7 +1216,7 @@ where
+ 
+                         view.resize_cols(
+                             ix,
+-                            e.event.position.x - HANDLE_SIZE - col_group.bounds.left(),
++                            e.event.position.x - HANDLE_HIT_AREA / 2. - col_group.bounds.left(),
+                             window,
+                             cx,
+                         );
+-- 
+2.52.0
+
