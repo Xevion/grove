@@ -15,8 +15,8 @@ pub const BORDER_COLOR: u32 = 0x31_3244;
 pub const BORDER_SUBTLE: u32 = 0x45_475a;
 pub const BORDER_INTERACTIVE: u32 = 0x58_5b70;
 
-/// Set gpui-component's theme to dark mode and override colors to match Grove's palette.
-pub fn apply_grove_theme(cx: &mut App) {
+/// Set gpui-component's theme to dark mode and override colors to match Toriix's palette.
+pub fn apply_toriix_theme(cx: &mut App) {
     Theme::change(ThemeMode::Dark, None, cx);
 
     let theme = Theme::global_mut(cx);

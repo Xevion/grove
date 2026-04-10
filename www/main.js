@@ -5,7 +5,7 @@ async function init() {
 
   if (!window.isSecureContext) {
     const msg = `Insecure context: WebGPU requires HTTPS or localhost. Current origin: ${location.origin}`;
-    console.error("[grove]", msg);
+    console.error("[toriix]", msg);
     loading.style.display = "none";
     error.style.display = "flex";
     errorMessage.textContent = msg;
@@ -14,7 +14,7 @@ async function init() {
 
   if (!navigator.gpu) {
     const msg = "WebGPU not available (navigator.gpu is undefined)";
-    console.error("[grove]", msg);
+    console.error("[toriix]", msg);
     loading.style.display = "none";
     error.style.display = "flex";
     errorMessage.textContent = msg;
@@ -22,7 +22,7 @@ async function init() {
   }
 
   try {
-    const wasm = await import("./wasm/grove.js");
+    const wasm = await import("./wasm/torrix.js");
     await wasm.default();
     loading.style.display = "none";
     await wasm.run();
@@ -30,7 +30,7 @@ async function init() {
     loading.style.display = "none";
     error.style.display = "flex";
     errorMessage.textContent = e.message || "Failed to initialize WASM module.";
-    console.error("Grove WASM init failed:", e);
+    console.error("Toriix WASM init failed:", e);
   }
 }
 

@@ -3,11 +3,11 @@ use gpui::{
     StatefulInteractiveElement, Styled, div, rgb,
 };
 
-use crate::app::GroveApp;
+use crate::app::ToriixApp;
 use crate::icons::Icon;
 use crate::theme::{BG_HOVER, BORDER_COLOR, SIDEBAR_BG, TEXT_MUTED, TEXT_PRIMARY};
 
-impl GroveApp {
+impl ToriixApp {
     pub(crate) fn render_sidebar(&self, cx: &Context<Self>) -> impl IntoElement {
         let mut sidebar = div()
             .flex()

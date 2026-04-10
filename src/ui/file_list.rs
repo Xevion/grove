@@ -6,7 +6,7 @@ use gpui::{
     uniform_list,
 };
 
-use crate::app::GroveApp;
+use crate::app::ToriixApp;
 use crate::icons::{Icon, IconName};
 use crate::theme::{ACCENT, BG_HOVER, BG_SELECTED, BG_SELECTED_HOVER, TEXT_MUTED, TEXT_PRIMARY};
 use crate::ui::column_table::{ColumnResize, FILE_LIST_FONT_PX, HANDLE_WIDTH};
@@ -18,7 +18,7 @@ const ROW_INSET_PX: f32 = 24.0;
 /// Sidebar resize handle width.
 const SIDEBAR_HANDLE_PX: f32 = 4.0;
 
-impl GroveApp {
+impl ToriixApp {
     /// Computes the content width available for column cells within a row.
     fn row_content_width(&self, window: &Window) -> gpui::Pixels {
         let viewport = window.viewport_size().width;

@@ -5,11 +5,11 @@ use gpui::{
     StatefulInteractiveElement, Styled, div, rems, rgb,
 };
 
-use crate::app::GroveApp;
+use crate::app::ToriixApp;
 use crate::icons::{Icon, IconName};
 use crate::theme::{BG_HOVER, BG_SURFACE, BORDER_COLOR, TEXT_MUTED, TEXT_PRIMARY, TEXT_SECONDARY};
 
-impl GroveApp {
+impl ToriixApp {
     pub(crate) fn render_toolbar(&self, cx: &Context<Self>) -> impl IntoElement {
         div()
             .flex()

@@ -40,7 +40,7 @@ use tracing::{info, instrument};
 struct SidebarResize;
 
 actions!(
-    grove,
+    torrix,
     [MoveDown, MoveUp, Open, NavigateUp, ToggleHidden, Deselect]
 );
 
@@ -53,15 +53,15 @@ impl Eq for Deselect {}
 
 pub fn register_keybindings(cx: &mut App) {
     cx.bind_keys([
-        KeyBinding::new("j", MoveDown, Some("Grove")),
-        KeyBinding::new("down", MoveDown, Some("Grove")),
-        KeyBinding::new("k", MoveUp, Some("Grove")),
-        KeyBinding::new("up", MoveUp, Some("Grove")),
-        KeyBinding::new("enter", Open, Some("Grove")),
-        KeyBinding::new("backspace", NavigateUp, Some("Grove")),
-        KeyBinding::new("ctrl-h", ToggleHidden, Some("Grove")),
-        KeyBinding::new(".", ToggleHidden, Some("Grove")),
-        KeyBinding::new("escape", Deselect, Some("Grove")),
+        KeyBinding::new("j", MoveDown, Some("Toriix")),
+        KeyBinding::new("down", MoveDown, Some("Toriix")),
+        KeyBinding::new("k", MoveUp, Some("Toriix")),
+        KeyBinding::new("up", MoveUp, Some("Toriix")),
+        KeyBinding::new("enter", Open, Some("Toriix")),
+        KeyBinding::new("backspace", NavigateUp, Some("Toriix")),
+        KeyBinding::new("ctrl-h", ToggleHidden, Some("Toriix")),
+        KeyBinding::new(".", ToggleHidden, Some("Toriix")),
+        KeyBinding::new("escape", Deselect, Some("Toriix")),
     ]);
 }
 
@@ -69,7 +69,7 @@ pub const SIDEBAR_DEFAULT_WIDTH: Pixels = px(200.);
 pub const SIDEBAR_MIN_WIDTH: Pixels = px(120.);
 pub const SIDEBAR_MAX_WIDTH: Pixels = px(400.);
 
-pub struct GroveApp {
+pub struct ToriixApp {
     pub current_dir: PathBuf,
     pub bookmarks: Vec<Bookmark>,
     pub show_hidden: bool,
@@ -87,7 +87,7 @@ pub struct GroveApp {
     pub sidebar_width: Pixels,
 }
 
-impl GroveApp {
+impl ToriixApp {
     pub fn new(cx: &mut Context<Self>) -> Self {
         #[cfg(not(target_family = "wasm"))]
         let current_dir = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("/"));
@@ -435,7 +435,7 @@ impl GroveApp {
     }
 }
 
-impl Render for GroveApp {
+impl Render for ToriixApp {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         if self.needs_initial_load {
             self.needs_initial_load = false;
@@ -457,7 +457,7 @@ impl Render for GroveApp {
 
         div()
             .track_focus(&self.focus_handle)
-            .key_context("Grove")
+            .key_context("Toriix")
             .on_action(cx.listener(Self::move_down))
             .on_action(cx.listener(Self::move_up))
             .on_action(cx.listener(Self::open))

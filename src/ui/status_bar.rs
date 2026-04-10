@@ -6,7 +6,7 @@ use gpui::{
 };
 use lru::LruCache;
 
-use crate::app::GroveApp;
+use crate::app::ToriixApp;
 use crate::theme::{BG_SURFACE, BORDER_COLOR, TEXT_MUTED};
 
 // Must match the font_family set on the status bar container
@@ -130,7 +130,7 @@ pub struct TruncationKey {
     entry_count: usize,
 }
 
-impl GroveApp {
+impl ToriixApp {
     pub(crate) fn render_status_bar(
         &mut self,
         window: &Window,

@@ -3,13 +3,13 @@ use gpui_component::Root;
 use tracing::info;
 use tracing_subscriber::EnvFilter;
 
-use grove::app::{self, GroveApp};
-use grove::assets::Assets;
-use grove::theme::apply_grove_theme;
+use torrix::app::{self, ToriixApp};
+use torrix::assets::Assets;
+use torrix::theme::apply_toriix_theme;
 
 fn init_tracing() {
     let filter =
-        EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("warn,grove=debug"));
+        EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("warn,torrix=debug"));
 
     tracing_subscriber::fmt()
         .with_env_filter(filter)
@@ -26,7 +26,7 @@ fn main() {
         .with_assets(Assets)
         .run(|cx: &mut App| {
             gpui_component::init(cx);
-            apply_grove_theme(cx);
+            apply_toriix_theme(cx);
             app::register_keybindings(cx);
 
             let options = WindowOptions {
@@ -36,14 +36,14 @@ fn main() {
                     cx,
                 ))),
                 titlebar: Some(TitlebarOptions {
-                    title: Some("Grove".into()),
+                    title: Some("Toriix".into()),
                     ..Default::default()
                 }),
                 ..Default::default()
             };
 
             cx.open_window(options, |window, cx| {
-                let view = cx.new(GroveApp::new);
+                let view = cx.new(ToriixApp::new);
                 cx.new(|cx| Root::new(view, window, cx))
             })
             .unwrap();

@@ -1,4 +1,4 @@
-# Grove — development recipes
+# Toriix — development recipes
 
 # Apply patches to vendored submodules
 patch:

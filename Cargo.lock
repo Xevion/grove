@@ -2610,32 +2610,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "12101ecc8225ea6d675bc70263074eab6169079621c2186fe0c66590b2df9681"
 
 [[package]]
-name = "grove"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "assert2",
- "dirs 6.0.0",
- "futures",
- "gpui",
- "gpui-component",
- "gpui-component-assets",
- "gpui_platform",
- "jiff",
- "lru",
- "open",
- "proptest",
- "rayon",
- "rstest",
- "rust-embed",
- "tempfile",
- "tracing",
- "tracing-subscriber",
- "wasm-bindgen",
- "web-sys",
-]
-
-[[package]]
 name = "h2"
 version = "0.4.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6568,6 +6542,32 @@ name = "toml_writer"
 version = "1.1.1+spec-1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "756daf9b1013ebe47a8776667b466417e2d4c5679d441c26230efd9ef78692db"
+
+[[package]]
+name = "torrix"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "assert2",
+ "dirs 6.0.0",
+ "futures",
+ "gpui",
+ "gpui-component",
+ "gpui-component-assets",
+ "gpui_platform",
+ "jiff",
+ "lru",
+ "open",
+ "proptest",
+ "rayon",
+ "rstest",
+ "rust-embed",
+ "tempfile",
+ "tracing",
+ "tracing-subscriber",
+ "wasm-bindgen",
+ "web-sys",
+]
 
 [[package]]
 name = "tower"

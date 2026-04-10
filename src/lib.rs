@@ -14,7 +14,7 @@ use gpui_component::Root;
 use wasm_bindgen::prelude::*;
 
 #[cfg(target_family = "wasm")]
-use app::GroveApp;
+use app::ToriixApp;
 #[cfg(target_family = "wasm")]
 use assets::Assets;
 
@@ -66,11 +66,11 @@ pub fn run() -> Result<(), JsValue> {
 
     app.run(|cx: &mut App| {
         gpui_component::init(cx);
-        crate::theme::apply_grove_theme(cx);
+        crate::theme::apply_toriix_theme(cx);
         app::register_keybindings(cx);
 
         match cx.open_window(WindowOptions::default(), |window, cx| {
-            let view = cx.new(GroveApp::new);
+            let view = cx.new(ToriixApp::new);
             cx.new(|cx| Root::new(view, window, cx))
         }) {
             Ok(_) => cx.activate(true),
