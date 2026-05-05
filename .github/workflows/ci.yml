@@ -63,13 +63,13 @@ jobs:
         run: cargo clippy --locked -- -D warnings
 
       - name: Install cargo-machete
-        uses: taiki-e/install-action@cargo-machete
+        uses: taiki-e/install-action@f86c85268b27a1e1c7021118ff52d8f09e4aa530 # cargo-machete
 
       - name: Check unused dependencies
         run: cargo machete
 
       - name: Install Rust nightly + WASM target
-        uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # nightly
+        uses: dtolnay/rust-toolchain@5b842231ba77f5c045dba54ac5560fed2db780e2 # nightly
         with:
           toolchain: nightly
           components: clippy
@@ -119,7 +119,7 @@ jobs:
             lld
 
       - name: Install nextest
-        uses: taiki-e/install-action@nextest
+        uses: taiki-e/install-action@65f36558ea9682525f70919321ba6b20e4a8d7a6 # nextest
 
       - name: Run tests
         run: cargo nextest run --locked --no-fail-fast --hide-progress-bar --failure-output final
@@ -139,7 +139,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # stable
 
       - name: Install cargo-deny
-        uses: taiki-e/install-action@cargo-deny
+        uses: taiki-e/install-action@4276f5c5467209401f06d04b0026ae72e3bf4b97 # cargo-deny
 
       - name: Check advisories, bans, and sources
         run: cargo deny -L error check --hide-inclusion-graph advisories bans sources
@@ -206,14 +206,14 @@ jobs:
 
       - name: Upload binary (Linux/macOS)
         if: runner.os != 'Windows'
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: ${{ matrix.artifact }}
           path: target/${{ matrix.target }}/release/torrix
 
       - name: Upload binary (Windows)
         if: runner.os == 'Windows'
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: ${{ matrix.artifact }}
           path: target/${{ matrix.target }}/release/torrix.exe
@@ -243,7 +243,7 @@ jobs:
         run: cd vendor/gpui-component && git apply ../../patches/*.patch
 
       - name: Install Rust nightly + wasm target
-        uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # nightly
+        uses: dtolnay/rust-toolchain@5b842231ba77f5c045dba54ac5560fed2db780e2 # nightly
         with:
           toolchain: nightly
           targets: wasm32-unknown-unknown
@@ -253,7 +253,7 @@ jobs:
           key: wasm
 
       - name: Install wasm-bindgen-cli
-        uses: taiki-e/install-action@v2
+        uses: taiki-e/install-action@cca35edeb1d01366c2843b68fc3ca441446d73d3 # v2
         with:
           tool: wasm-bindgen-cli@0.2.117
 
